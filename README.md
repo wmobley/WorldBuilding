@@ -1,17 +1,15 @@
-# 5e.tools
+# Worldbuilder
 
-Visit the [main site](https://5e.tools/index.html) or go to the unofficial GitHub [mirror](index.html).
+Phase 1 of the Worldbuilder app. The design and worldbuilding philosophy live in `WorldBuilder_readme.md` and should be treated as the authoritative guide.
 
-[Join the 5etools Discord here!](https://discord.gg/5etools)
+## Dev
 
-## Help and Support
+```bash
+npm install
+npm run dev
+```
 
-Please see [our wiki](https://wiki.tercept.net/) for FAQs, installation guides, supported integrations, and more.
+## Vault Export/Import
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-This project is licensed under the terms of the MIT license.
+- Export from Settings to download a single vault JSON (folders, docs, edges, tags, trash state).
+- Import a vault JSON to merge into or overwrite the active campaign.

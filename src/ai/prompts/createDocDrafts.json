@@ -1,0 +1,26 @@
+{
+  "purpose": "Return structured doc drafts for new items.",
+  "inputs": [
+    "worldContext",
+    "selectedAnchors",
+    "tone",
+    "notes"
+  ],
+  "outputSchema": {
+    "drafts": [
+      {
+        "title": "string",
+        "folderHint": "World | Places | People | Lore | Other",
+        "bodyMarkdown": "string",
+        "linksTo": ["string"],
+        "tags": ["string"]
+      }
+    ]
+  },
+  "rules": [
+    "Mark every invented entity as a draft only.",
+    "Never overwrite existing docs automatically.",
+    "Keep each draft short and link to existing docs when possible.",
+    "If a draft introduces a new entity, mark it as [NEW] in the body."
+  ]
+}
