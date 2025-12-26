@@ -1,7 +1,7 @@
 desktop.ini
 node_modules
 img
-
+./5esourcecode/*
 # IntelliJ project files
 .idea/
 *.iml
