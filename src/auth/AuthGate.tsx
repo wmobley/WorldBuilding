@@ -43,10 +43,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   const handleSendLink = async () => {
     if (!email.trim()) return;
+    const redirectTo =
+      import.meta.env.VITE_SUPABASE_REDIRECT_URL ?? window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: window.location.origin
+        emailRedirectTo: redirectTo
       }
     });
     setStatus(error ? "error" : "sent");
