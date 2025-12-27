@@ -188,10 +188,13 @@ export default function CampaignSettingsPage() {
       const invite = await createCampaignInvite(activeCampaignId, email, inviteRole, user.id);
       const redirectTo =
         import.meta.env.VITE_SUPABASE_REDIRECT_URL ?? window.location.origin;
+      const redirectBase = redirectTo.endsWith("/")
+        ? redirectTo.slice(0, -1)
+        : redirectTo;
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${redirectTo.replace(/\\/$/, "")}/invite/${invite.id}`
+          emailRedirectTo: `${redirectBase}/invite/${invite.id}`
         }
       });
       setInviteStatus(error ? "error" : "sent");
