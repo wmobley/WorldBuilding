@@ -1,7 +1,13 @@
-import { db } from "../../vault/db";
 import type { Doc, Folder } from "../../vault/types";
 import { buildWorldContext } from "../context";
 import { isIndexDoc } from "../../vault/indexing";
+import {
+  getDocById,
+  listDocs,
+  listDocsByIds,
+  listEdgesFromDocs,
+  listFolders
+} from "../../vault/queries";
 
 export type RecentChange = {
   docTitle: string;
@@ -46,20 +52,12 @@ export async function whatChangedRecently(
   const context = await buildWorldContext(currentDocId);
   if (!context) return [];
 
-  const currentDoc = await db.docs.get(currentDocId);
+  const currentDoc = await getDocById(currentDocId);
   if (!currentDoc || currentDoc.deletedAt) return [];
 
   const [folders, docs] = await Promise.all([
-    db.folders
-      .where("campaignId")
-      .equals(currentDoc.campaignId)
-      .filter((folder) => !folder.deletedAt)
-      .toArray(),
-    db.docs
-      .where("campaignId")
-      .equals(currentDoc.campaignId)
-      .filter((doc) => !doc.deletedAt && !isIndexDoc(doc))
-      .toArray()
+    listFolders(currentDoc.campaignId),
+    listDocs(currentDoc.campaignId)
   ]);
 
   const folderMap = new Map<string, Folder>(folders.map((folder) => [folder.id, folder]));
@@ -68,7 +66,9 @@ export async function whatChangedRecently(
     ...context.backlinks.map((doc) => doc.id)
   ]);
 
-  const filteredDocs = docs.filter(
+  const filteredDocs = docs
+    .filter((doc) => !isIndexDoc(doc))
+    .filter(
     (doc) => (doc.body ?? "").trim().length >= MIN_BODY_LENGTH
   );
 
@@ -80,9 +80,9 @@ export async function whatChangedRecently(
   const rankedDocIds = ranked.map((entry) => entry.doc.id);
   const edges =
     rankedDocIds.length > 0
-      ? await db.edges.where("fromDocId").anyOf(rankedDocIds).toArray()
+      ? await listEdgesFromDocs(rankedDocIds)
       : [];
-  const edgeTargets = await db.docs.bulkGet(edges.map((edge) => edge.toDocId));
+  const edgeTargets = await listDocsByIds(edges.map((edge) => edge.toDocId));
   const targetLookup = new Map(
     edgeTargets.filter(Boolean).map((doc) => [doc!.id, doc!])
   );

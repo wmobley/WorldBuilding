@@ -1,6 +1,16 @@
-import { db } from "./db";
 import { createId } from "../lib/id";
-import { saveDocContent, updateAllFolderIndexes } from "./queries";
+import { supabase } from "../lib/supabase";
+import {
+  createDoc,
+  createFolder,
+  getSetting,
+  listDocs,
+  listFolders,
+  moveDoc,
+  saveDocContent,
+  setSetting,
+  updateAllFolderIndexes
+} from "./queries";
 import type { Doc, Folder } from "./types";
 
 const seedDocs = [
@@ -34,68 +44,105 @@ export async function seedCampaignIfNeeded(campaignId: string) {
   if (seedPromises.has(campaignId)) return seedPromises.get(campaignId);
 
   const promise = (async () => {
-    const existing = await db.docs.where("campaignId").equals(campaignId).count();
-    if (existing > 0) return;
+    const { count, error } = await supabase
+      .from("docs")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId);
+    if (error) {
+      console.error("Supabase error in seedCampaignIfNeeded:", error);
+      return;
+    }
+    if ((count ?? 0) > 0) return;
 
     const folderMap = new Map<string, Folder>();
     const folderNames = Array.from(new Set(topLevelFolders));
 
-    await db.transaction("rw", db.folders, db.docs, async () => {
-      for (const name of folderNames) {
-       const folder: Folder = {
+    for (const name of folderNames) {
+      const folder = await createFolder(name, null, campaignId, false);
+      folderMap.set(name, folder);
+    }
+
+    for (const entry of seedDocs) {
+      const doc: Doc = {
+        id: createId(),
+        folderId: entry.folder ? folderMap.get(entry.folder)?.id ?? null : null,
+        title: entry.title,
+        body: entry.body,
+        updatedAt: Date.now(),
+        campaignId,
+        shared: false,
+        sortIndex: Date.now(),
+        deletedAt: null
+      };
+      const { error: docError } = await supabase.from("docs").insert({
+        id: doc.id,
+        folder_id: doc.folderId,
+        title: doc.title,
+        body: doc.body,
+        updated_at: doc.updatedAt,
+        campaign_id: doc.campaignId,
+        shared: doc.shared,
+        sort_index: doc.sortIndex,
+        deleted_at: doc.deletedAt
+      });
+      if (docError) {
+        console.error("Supabase error in seedCampaignIfNeeded:doc:", docError);
+      }
+    }
+
+    for (const section of indexStructure) {
+      const parentFolder = folderMap.get(section.parent);
+      if (!parentFolder) continue;
+      for (const child of section.children) {
+        const subfolder: Folder = {
           id: createId(),
-          name,
-          parentFolderId: null,
+          name: child,
+          parentFolderId: parentFolder.id,
           campaignId,
+          shared: false,
           deletedAt: null
         };
-        folderMap.set(name, folder);
-        await db.folders.add(folder);
-      }
+        const { error: folderError } = await supabase.from("folders").insert({
+          id: subfolder.id,
+          name: subfolder.name,
+          parent_folder_id: subfolder.parentFolderId,
+          campaign_id: subfolder.campaignId,
+          shared: subfolder.shared,
+          deleted_at: subfolder.deletedAt
+        });
+        if (folderError) {
+          console.error("Supabase error in seedCampaignIfNeeded:folder:", folderError);
+        }
 
-      for (const entry of seedDocs) {
-       const doc: Doc = {
+        const doc: Doc = {
           id: createId(),
-          folderId: entry.folder ? folderMap.get(entry.folder)?.id ?? null : null,
-          title: entry.title,
-          body: entry.body,
+          folderId: subfolder.id,
+          title: child,
+          body: "",
           updatedAt: Date.now(),
           campaignId,
+          shared: false,
           sortIndex: Date.now(),
           deletedAt: null
         };
-        await db.docs.add(doc);
-      }
-
-      for (const section of indexStructure) {
-        const parentFolder = folderMap.get(section.parent);
-        if (!parentFolder) continue;
-        for (const child of section.children) {
-         const subfolder: Folder = {
-            id: createId(),
-            name: child,
-            parentFolderId: parentFolder.id,
-            campaignId,
-            deletedAt: null
-          };
-          await db.folders.add(subfolder);
-
-          const doc: Doc = {
-            id: createId(),
-            folderId: subfolder.id,
-            title: child,
-            body: "",
-            updatedAt: Date.now(),
-            campaignId,
-            sortIndex: Date.now(),
-            deletedAt: null
-          };
-          await db.docs.add(doc);
+        const { error: childDocError } = await supabase.from("docs").insert({
+          id: doc.id,
+          folder_id: doc.folderId,
+          title: doc.title,
+          body: doc.body,
+          updated_at: doc.updatedAt,
+          campaign_id: doc.campaignId,
+          shared: doc.shared,
+          sort_index: doc.sortIndex,
+          deleted_at: doc.deletedAt
+        });
+        if (childDocError) {
+          console.error("Supabase error in seedCampaignIfNeeded:childDoc:", childDocError);
         }
       }
-    });
+    }
 
-    const allDocs = await db.docs.where("campaignId").equals(campaignId).toArray();
+    const allDocs = await listDocs(campaignId);
     for (const doc of allDocs) {
       await saveDocContent(doc.id, doc.body);
     }
@@ -108,103 +155,80 @@ export async function seedCampaignIfNeeded(campaignId: string) {
 }
 
 export async function migrateImplicitWorld(campaignId: string) {
-  const worldFolder = await db.folders
-    .where("campaignId")
-    .equals(campaignId)
-    .filter((folder) => folder.name.toLowerCase() === "world")
-    .first();
+  const folders = await listFolders(campaignId);
+  const worldFolder = folders.find((folder) => folder.name.toLowerCase() === "world");
   if (!worldFolder) return;
 
-  const subfolders = await db.folders.where("parentFolderId").equals(worldFolder.id).toArray();
-  const worldDocs = await db.docs.where("folderId").equals(worldFolder.id).toArray();
+  const subfolders = folders.filter((folder) => folder.parentFolderId === worldFolder.id);
+  const worldDocs = (await listDocs(campaignId)).filter(
+    (doc) => doc.folderId === worldFolder.id
+  );
 
-  await db.transaction("rw", db.folders, db.docs, async () => {
-    for (const folder of subfolders) {
-      await db.folders.update(folder.id, { parentFolderId: null });
-    }
-    for (const doc of worldDocs) {
-      await db.docs.update(doc.id, { folderId: null });
-    }
-    await db.folders.delete(worldFolder.id);
-  });
+  for (const folder of subfolders) {
+    await supabase
+      .from("folders")
+      .update({ parent_folder_id: null })
+      .eq("id", folder.id);
+  }
+  for (const doc of worldDocs) {
+    await moveDoc(doc.id, null);
+  }
+  await supabase.from("folders").delete().eq("id", worldFolder.id);
 }
 
 export async function migrateIndexDocsToSubfolders(campaignId: string) {
   const key = `structureMigrated:${campaignId}`;
-  const migrated = await db.settings.get(key);
-  if (migrated?.value === "true") return;
+  const migrated = await getSetting(key);
+  if (migrated === "true") return;
 
-  await db.transaction("rw", db.settings, db.folders, db.docs, async () => {
-    const topFolders = await db.folders
-      .where("campaignId")
-      .equals(campaignId)
-      .and((folder) => folder.parentFolderId === null)
-      .toArray();
-    const folderByName = new Map(topFolders.map((folder) => [folder.name, folder]));
+  const folders = await listFolders(campaignId);
+  const docs = await listDocs(campaignId);
+  const topFolders = folders.filter((folder) => folder.parentFolderId === null);
+  const folderByName = new Map(topFolders.map((folder) => [folder.name, folder]));
 
-    for (const section of indexStructure) {
-      const parent = folderByName.get(section.parent);
-      if (!parent) continue;
-      for (const child of section.children) {
-        let subfolder = await db.folders
-          .where("campaignId")
-          .equals(campaignId)
-          .and(
-            (folder) => folder.name === child && folder.parentFolderId === parent.id
-          )
-          .first();
-        if (!subfolder) {
-          subfolder = {
-            id: createId(),
-            name: child,
-            parentFolderId: parent.id,
-            campaignId
-          };
-          await db.folders.add(subfolder);
-        }
+  for (const section of indexStructure) {
+    const parent = folderByName.get(section.parent);
+    if (!parent) continue;
+    for (const child of section.children) {
+      let subfolder = folders.find(
+        (folder) => folder.name === child && folder.parentFolderId === parent.id
+      );
+      if (!subfolder) {
+        subfolder = await createFolder(child, parent.id, campaignId, false);
+      }
 
-        const existingDoc = await db.docs
-          .where("campaignId")
-          .equals(campaignId)
-          .and(
-            (doc) =>
-              doc.title === child &&
-              (doc.folderId === parent.id || doc.folderId === null)
-          )
-          .first();
-        if (existingDoc) {
-          await db.docs.update(existingDoc.id, { folderId: subfolder.id });
-        }
+      const existingDoc = docs.find(
+        (doc) =>
+          doc.title === child && (doc.folderId === parent.id || doc.folderId === null)
+      );
+      if (existingDoc) {
+        await moveDoc(existingDoc.id, subfolder.id);
       }
     }
+  }
 
-    await db.settings.put({ key, value: "true" });
-  });
+  await setSetting(key, "true");
 
   await updateAllFolderIndexes(campaignId);
 }
 
 export async function removeDocsMatchingSubfolders(campaignId: string) {
   const key = `subfolderDocCleanup:${campaignId}`;
-  const cleaned = await db.settings.get(key);
-  if (cleaned?.value === "true") return;
+  const cleaned = await getSetting(key);
+  if (cleaned === "true") return;
 
-  await db.transaction("rw", db.settings, db.folders, db.docs, async () => {
-    const folders = await db.folders
-      .where("campaignId")
-      .equals(campaignId)
-      .and((folder) => folder.parentFolderId !== null)
-      .toArray();
-    const folderNameSet = new Set(folders.map((folder) => folder.name));
+  const folders = await listFolders(campaignId);
+  const folderNameSet = new Set(
+    folders.filter((folder) => folder.parentFolderId !== null).map((folder) => folder.name)
+  );
 
-    const docs = await db.docs.where("campaignId").equals(campaignId).toArray();
-    for (const doc of docs) {
-      if (!folderNameSet.has(doc.title)) continue;
-      if (doc.folderId && folders.some((folder) => folder.id === doc.folderId)) {
-        await db.docs.delete(doc.id);
-      }
+  const docs = await listDocs(campaignId);
+  for (const doc of docs) {
+    if (!folderNameSet.has(doc.title)) continue;
+    if (doc.folderId && folders.some((folder) => folder.id === doc.folderId)) {
+      await supabase.from("docs").delete().eq("id", doc.id);
     }
+  }
 
-    await db.settings.put({ key, value: "true" });
-  });
+  await setSetting(key, "true");
 }

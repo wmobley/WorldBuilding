@@ -7,13 +7,15 @@ export default function CampaignPanel({
   viewMode,
   onSelectView,
   onCreateCampaign,
-  onUpdateCampaign
+  onUpdateCampaign,
+  onOpenSettings
 }: {
   activeCampaign: Campaign | null;
   viewMode: "worldview" | "timeline" | "maps";
   onSelectView: (view: "worldview" | "timeline" | "maps") => void;
   onCreateCampaign: () => void;
   onUpdateCampaign: (campaignId: string, updates: Partial<Campaign>) => void;
+  onOpenSettings?: (campaignId: string) => void;
 }) {
   const campaignPanel = usePanelCollapse("campaign-panel");
   return (
@@ -71,6 +73,14 @@ export default function CampaignPanel({
                 id="campaign-synopsis"
                 className="w-full min-h-[120px] rounded-xl border border-page-edge bg-parchment/70 p-3 text-sm font-body"
               />
+              {onOpenSettings && (
+                <button
+                  onClick={() => onOpenSettings(activeCampaign.id)}
+                  className="w-full rounded-xl border border-page-edge px-3 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
+                >
+                  Campaign Settings
+                </button>
+              )}
             </>
           )}
         </div>

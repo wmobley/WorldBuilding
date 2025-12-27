@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLiveQuery } from "dexie-react-hooks";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
 import AppShell from "../ui/AppShell";
 import HeaderBar from "../ui/HeaderBar";
 import CampaignPanel from "../ui/CampaignPanel";
 import CampaignModal from "../ui/components/CampaignModal";
-import { db } from "../vault/db";
 import {
   createCampaign,
   createMap,
@@ -15,6 +14,7 @@ import {
   getDocByTitle,
   getSetting,
   listCampaigns,
+  listDocs,
   listMapLocations,
   listMaps,
   setSetting,
@@ -44,31 +44,37 @@ export default function MapsPage() {
   const [mapFile, setMapFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  const campaigns = useLiveQuery(() => listCampaigns(), [], []);
+  const campaigns = useSupabaseQuery(() => listCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
   const activeCampaign = useMemo(
     () => (campaigns ?? []).find((campaign) => campaign.id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId]
   );
 
-  const docs = useLiveQuery(
-    () =>
-      activeCampaignId
-        ? db.docs.where("campaignId").equals(activeCampaignId).sortBy("title")
-        : Promise.resolve([]),
+  const docs = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      const list = await listDocs(activeCampaignId);
+      return list.sort((a, b) => a.title.localeCompare(b.title));
+    },
     [activeCampaignId],
-    []
+    [],
+    { tables: ["docs"] }
   );
 
-  const maps = useLiveQuery(
+  const maps = useSupabaseQuery(
     () => (activeCampaignId ? listMaps(activeCampaignId) : Promise.resolve([])),
     [activeCampaignId],
-    []
+    [],
+    { tables: ["maps"] }
   );
 
-  const mapLocations = useLiveQuery(
+  const mapLocations = useSupabaseQuery(
     () => (selectedMapId ? listMapLocations(selectedMapId) : Promise.resolve([])),
     [selectedMapId],
-    []
+    [],
+    { tables: ["map_locations"] }
   );
 
   const visibleDocs = useMemo(
@@ -99,7 +105,7 @@ export default function MapsPage() {
         return;
       }
 
-      const existing = await db.campaigns.toArray();
+      const existing = await listCampaigns();
       if (existing.length > 0) {
         const first = existing[0];
         setActiveCampaignId(first.id);
@@ -228,6 +234,7 @@ export default function MapsPage() {
             onUpdateCampaign={(campaignId, updates) => {
               updateCampaign(campaignId, updates).catch(() => undefined);
             }}
+            onOpenSettings={(campaignId) => navigate(`/campaign/${campaignId}/settings`)}
           />
         }
         page={

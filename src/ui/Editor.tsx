@@ -15,6 +15,7 @@ export type EditorHandle = {
   openLinkMenu: () => void;
   prefixLines: (prefix: string) => void;
   wrapBlock: (prefix: string, suffix: string) => void;
+  getSelection: () => { text: string; from: number; to: number } | null;
 };
 
 type LinkOption = {
@@ -279,11 +280,20 @@ const Editor = forwardRef<
       view.focus();
     };
 
+    const getSelection = () => {
+      const view = viewRef.current;
+      if (!view) return null;
+      const { from, to } = view.state.selection.main;
+      const text = view.state.doc.sliceString(from, to);
+      return { text, from, to };
+    };
+
     useImperativeHandle(ref, () => ({
       wrapSelection,
       openLinkMenu,
       prefixLines,
-      wrapBlock
+      wrapBlock,
+      getSelection
     }));
 
     return <div id="editor-codemirror" ref={containerRef} className="codemirror-shell" />;

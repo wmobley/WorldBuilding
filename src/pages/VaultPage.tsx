@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useLiveQuery } from "dexie-react-hooks";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
 import AppShell from "../ui/AppShell";
 import HeaderBar from "../ui/HeaderBar";
 import CampaignPanel from "../ui/CampaignPanel";
@@ -13,15 +13,21 @@ import PromptModal from "../ui/components/PromptModal";
 import ConfirmModal from "../ui/components/ConfirmModal";
 import NpcCreateModal from "../ui/components/NpcCreateModal";
 import TrashPanel from "../ui/TrashPanel";
-import { db } from "../vault/db";
 import {
   createCampaign,
   createDoc,
   createFolder,
+  createSharedSnippet,
+  getDocById,
   getDocByTitle,
   listBacklinks,
   listCampaigns,
+  listDocs,
   listDocsWithTag,
+  listFolders,
+  listMaps,
+  listMapLocationsByDoc,
+  listTagsForDocs,
   listTagsForDoc,
   listTrashedDocs,
   listTrashedFolders,
@@ -40,6 +46,9 @@ import {
   getSetting,
   getNpcProfile,
   setNpcProfile,
+  listReferencesBySlug,
+  getReferenceById,
+  listReferencesBySlugs,
   trashDoc,
   trashFolder
 } from "../vault/queries";
@@ -51,7 +60,6 @@ import {
 } from "../vault/seed";
 import { seedReferencesIfNeeded } from "../vault/referenceSeed";
 import { isIndexDoc } from "../vault/indexing";
-import { listReferencesBySlug } from "../vault/queries";
 import { templates } from "../lib/templates";
 import { extractBacklinkContext } from "../lib/text";
 import { useDebouncedCallback } from "../lib/useDebouncedCallback";
@@ -81,6 +89,7 @@ import fortBuilderPrompt from "../ai/prompts/fortBuilder.md?raw";
 import { createId } from "../lib/id";
 import { sendPromptToProvider, type AiProvider } from "../ai/client";
 import { parseLinks, parseTags } from "../vault/parser";
+import { useAuth } from "../auth/AuthGate";
 
 function collectFolderPath(folderId: string | null, folderMap: Map<string, Folder>) {
   const names: string[] = [];
@@ -110,6 +119,7 @@ export default function VaultPage() {
   const { docId, folderName } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isTrashView = location.pathname === "/trash";
   const [quickOpen, setQuickOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -167,11 +177,13 @@ export default function VaultPage() {
     title: string;
   } | null>(null);
 
-  const campaigns = useLiveQuery(() => listCampaigns(), [], []);
-  const folders = useLiveQuery(
+  const campaigns = useSupabaseQuery(() => listCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
+  const folders = useSupabaseQuery(
     async () => {
       if (!activeCampaignId) return [];
-      const list = await db.folders.where("campaignId").equals(activeCampaignId).toArray();
+      const list = await listFolders(activeCampaignId);
       const order = new Map([
         ["Factions", 0],
         ["Religions", 1],
@@ -181,9 +193,7 @@ export default function VaultPage() {
         ["Lore", 5],
         ["People", 6]
       ]);
-      return list
-        .filter((folder) => !folder.deletedAt)
-        .sort((a, b) => {
+      return list.sort((a, b) => {
         const aOrder = order.get(a.name) ?? 100;
         const bOrder = order.get(b.name) ?? 100;
         if (aOrder !== bOrder) return aOrder - bOrder;
@@ -191,87 +201,112 @@ export default function VaultPage() {
       });
     },
     [activeCampaignId],
-    []
+    [],
+    { tables: ["folders"] }
   );
-  const docs = useLiveQuery(
-    () =>
-      activeCampaignId
-        ? db.docs
-            .where("campaignId")
-            .equals(activeCampaignId)
-            .toArray()
-            .then((list) =>
-              list
-                .filter((doc) => !doc.deletedAt)
-                .sort((a, b) => a.title.localeCompare(b.title))
-            )
-        : Promise.resolve([]),
+  const docs = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      const list = await listDocs(activeCampaignId);
+      return list.sort((a, b) => a.title.localeCompare(b.title));
+    },
     [activeCampaignId],
-    []
+    [],
+    { tables: ["docs"] }
   );
-  const trashedDocs = useLiveQuery(
+  const trashedDocs = useSupabaseQuery(
     () => (activeCampaignId ? listTrashedDocs(activeCampaignId) : Promise.resolve([])),
     [activeCampaignId],
-    []
+    [],
+    { tables: ["docs"] }
   );
-  const trashedFolders = useLiveQuery(
-    () => (activeCampaignId ? listTrashedFolders(activeCampaignId) : Promise.resolve([])),
+  const trashedFolders = useSupabaseQuery(
+    () =>
+      activeCampaignId ? listTrashedFolders(activeCampaignId) : Promise.resolve([]),
     [activeCampaignId],
-    []
+    [],
+    { tables: ["folders"] }
   );
-  const currentDoc = useLiveQuery(
-    () => (docId ? db.docs.get(docId) : Promise.resolve(undefined)),
-    [docId]
+  const currentDoc = useSupabaseQuery(
+    () => (docId ? getDocById(docId) : Promise.resolve(undefined)),
+    [docId],
+    undefined,
+    { tables: ["docs"] }
   );
-  const linkPreviewDoc = useLiveQuery(async () => {
-    if (!linkPreviewDocId) return undefined;
-    const doc = await db.docs.get(linkPreviewDocId);
-    if (doc) return { type: "doc" as const, data: doc };
-    const ref = await db.references.get(linkPreviewDocId);
-    if (ref) return { type: "reference" as const, data: ref };
-    return undefined;
-  }, [linkPreviewDocId]);
-  const references = useLiveQuery(async () => {
-    const slugs = [
-      "actions",
-      "bastions",
-      "bestiary",
-      "conditions-diseases",
-      "decks",
-      "deities",
-      "items",
-      "languages",
-      "rewards",
-      "psionics",
-      "spells",
-      "vehicles",
-      "recipes",
-      "adventures",
-      "cults-boons",
-      "objects",
-      "traps-hazards"
-    ];
-    const results = await Promise.all(slugs.map((slug) => listReferencesBySlug(slug)));
-    return results.flat();
-  }, []);
-  const bestiaryReferences = useLiveQuery(async () => {
-    const entries = await db.references.where("slug").equals("bestiary").toArray();
-    return entries.filter((entry) => entry.rawJson);
-  }, []);
-  const mapPins = useLiveQuery(async () => {
-    if (!currentDoc) return [] as MapPin[];
-    const locations = await db.mapLocations.where("docId").equals(currentDoc.id).toArray();
-    if (locations.length === 0) return [] as MapPin[];
-    const maps = await db.maps.bulkGet(locations.map((location) => location.mapId));
-    return locations.map((location, index) => ({
-      ...location,
-      map: maps[index] ?? null
-    }));
-  }, [currentDoc?.id, navigate]);
-  const npcProfile = useLiveQuery(async () => {
-    if (!currentDoc) return null;
-    return getNpcProfile(currentDoc.id);
-  }, [currentDoc?.id]);
+  const linkPreviewDoc = useSupabaseQuery(
+    async () => {
+      if (!linkPreviewDocId) return undefined;
+      const doc = await getDocById(linkPreviewDocId);
+      if (doc) return { type: "doc" as const, data: doc };
+      const ref = await getReferenceById(linkPreviewDocId);
+      if (ref) return { type: "reference" as const, data: ref };
+      return undefined;
+    },
+    [linkPreviewDocId],
+    undefined,
+    { tables: ["docs", "references"] }
+  );
+  const references = useSupabaseQuery(
+    async () => {
+      const slugs = [
+        "actions",
+        "bastions",
+        "bestiary",
+        "conditions-diseases",
+        "decks",
+        "deities",
+        "items",
+        "languages",
+        "rewards",
+        "psionics",
+        "spells",
+        "vehicles",
+        "recipes",
+        "adventures",
+        "cults-boons",
+        "objects",
+        "traps-hazards"
+      ];
+      return listReferencesBySlugs(slugs);
+    },
+    [],
+    [],
+    { tables: ["references"] }
+  );
+  const bestiaryReferences = useSupabaseQuery(
+    async () => {
+      const entries = await listReferencesBySlug("bestiary");
+      return entries.filter((entry) => entry.rawJson);
+    },
+    [],
+    [],
+    { tables: ["references"] }
+  );
+  const mapPins = useSupabaseQuery(
+    async () => {
+      if (!currentDoc) return [] as MapPin[];
+      const locations = await listMapLocationsByDoc(currentDoc.id);
+      if (locations.length === 0) return [] as MapPin[];
+      const maps = await listMaps(currentDoc.campaignId);
+      const mapMap = new Map(maps.map((map) => [map.id, map]));
+      return locations.map((location) => ({
+        ...location,
+        map: mapMap.get(location.mapId) ?? null
+      }));
+    },
+    [currentDoc?.id],
+    [],
+    { tables: ["map_locations", "maps"] }
+  );
+  const npcProfile = useSupabaseQuery(
+    async () => {
+      if (!currentDoc) return null;
+      return getNpcProfile(currentDoc.id);
+    },
+    [currentDoc?.id],
+    null,
+    { tables: ["npc_profiles"] }
+  );
 
   const [titleDraft, setTitleDraft] = useState("");
   const [bodyDraft, setBodyDraft] = useState("");
@@ -279,6 +314,7 @@ export default function VaultPage() {
     () => (campaigns ?? []).find((campaign) => campaign.id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId]
   );
+  const canShareSnippets = Boolean(activeCampaign?.ownerId && user?.id === activeCampaign.ownerId);
   const npcCreature = useMemo(() => {
     if (!npcProfile?.creatureId) return null;
     const creature = (bestiaryReferences ?? []).find(
@@ -307,7 +343,7 @@ export default function VaultPage() {
         return;
       }
 
-      const existing = await db.campaigns.toArray();
+      const existing = await listCampaigns();
       if (existing.length > 0) {
         const first = existing[0];
         setActiveCampaignId(first.id);
@@ -410,14 +446,9 @@ export default function VaultPage() {
     if (!folderName || !activeCampaignId) return;
     const openFolderIndex = async () => {
       const decoded = decodeURIComponent(folderName);
-      const folder = await db.folders
-        .where("campaignId")
-        .equals(activeCampaignId)
-        .filter(
-          (candidate) =>
-            !candidate.deletedAt && candidate.name.toLowerCase() === decoded.toLowerCase()
-        )
-        .first();
+      const folder = (await listFolders(activeCampaignId)).find(
+        (candidate) => candidate.name.toLowerCase() === decoded.toLowerCase()
+      );
       if (!folder) return;
       await updateAllFolderIndexes(activeCampaignId);
       const indexDoc = await getDocByTitle(`${folder.name} Index`, activeCampaignId);
@@ -528,76 +559,91 @@ export default function VaultPage() {
   useEffect(() => {
     if (!activeCampaignId) return;
     const cleanupFolderDocs = async () => {
-      const candidates = await db.docs
-        .where("campaignId")
-        .equals(activeCampaignId)
-        .filter((doc) => doc.title.toLowerCase().includes("folder:"))
-        .toArray();
-      const welcomeCandidates = await db.docs
-        .where("campaignId")
-        .equals(activeCampaignId)
-        .filter((doc) => doc.body.includes("Worldbuilder is a spellbook of systems"))
-        .toArray();
+      const docs = await listDocs(activeCampaignId);
+      const candidates = docs.filter((doc) =>
+        doc.title.toLowerCase().includes("folder:")
+      );
+      const welcomeCandidates = docs.filter((doc) =>
+        doc.body.includes("Worldbuilder is a spellbook of systems")
+      );
       if (candidates.length === 0 && welcomeCandidates.length === 0) return;
-      await db.transaction("rw", db.docs, async () => {
-        if (welcomeCandidates.length > 0) {
-          const sorted = [...welcomeCandidates].sort((a, b) => b.updatedAt - a.updatedAt);
-          const keeper = sorted[0];
-          await db.docs.update(keeper.id, { title: "Welcome" });
-          for (const extra of sorted.slice(1)) {
-            await db.docs.delete(extra.id);
-          }
+      if (welcomeCandidates.length > 0) {
+        const sorted = [...welcomeCandidates].sort((a, b) => b.updatedAt - a.updatedAt);
+        const keeper = sorted[0];
+        await renameDoc(keeper.id, "Welcome");
+        for (const extra of sorted.slice(1)) {
+          await purgeDoc(extra.id);
         }
-        for (const doc of candidates) {
-          if (!doc.body.trim()) {
-            await db.docs.delete(doc.id);
-          }
+      }
+      for (const doc of candidates) {
+        if (!doc.body.trim()) {
+          await purgeDoc(doc.id);
         }
-      });
+      }
     };
     cleanupFolderDocs().catch(() => undefined);
   }, [activeCampaignId]);
 
-  const backlinks = useLiveQuery(async () => {
-    if (!currentDoc) return [] as { source: Doc; snippet: string }[];
-    const results = await listBacklinks(currentDoc.id);
-    return results
-      .map((result) => {
-        const source = result?.source;
-        if (!source) return null;
-        const marker = `[[${currentDoc.title}`;
-        const context = extractBacklinkContext(source.body, marker);
-        return { source, ...context };
-      })
-      .filter(Boolean)
-      .filter((entry) => !isIndexDoc(entry.source)) as {
-      source: Doc;
-      heading: string | null;
-      subheading: string | null;
-      line: string;
-    }[];
-  }, [currentDoc?.id, currentDoc?.title]);
+  const backlinks = useSupabaseQuery(
+    async () => {
+      if (!currentDoc) return [] as { source: Doc; snippet: string }[];
+      const results = await listBacklinks(currentDoc.id);
+      return results
+        .map((result) => {
+          const source = result?.source;
+          if (!source) return null;
+          const marker = `[[${currentDoc.title}`;
+          const context = extractBacklinkContext(source.body, marker);
+          return { source, ...context };
+        })
+        .filter(Boolean)
+        .filter((entry) => !isIndexDoc(entry.source)) as {
+        source: Doc;
+        heading: string | null;
+        subheading: string | null;
+        line: string;
+      }[];
+    },
+    [currentDoc?.id, currentDoc?.title],
+    [],
+    { tables: ["edges", "docs"] }
+  );
 
-  const tags = useLiveQuery(async () => {
-    if (!currentDoc) return [];
-    return listTagsForDoc(currentDoc.id);
-  }, [currentDoc?.id]);
+  const tags = useSupabaseQuery(
+    async () => {
+      if (!currentDoc) return [];
+      return listTagsForDoc(currentDoc.id);
+    },
+    [currentDoc?.id],
+    [],
+    { tables: ["tags"] }
+  );
 
-  const tagResults = useLiveQuery(async () => {
-    if (!tagFilter || !activeCampaignId) return [];
-    return listDocsWithTag(tagFilter.type, tagFilter.value, activeCampaignId);
-  }, [tagFilter?.type, tagFilter?.value, activeCampaignId]);
+  const tagResults = useSupabaseQuery(
+    async () => {
+      if (!tagFilter || !activeCampaignId) return [];
+      return listDocsWithTag(tagFilter.type, tagFilter.value, activeCampaignId);
+    },
+    [tagFilter?.type, tagFilter?.value, activeCampaignId],
+    [],
+    { tables: ["tags", "docs"] }
+  );
 
-  const worldbuildContext = useLiveQuery(async () => {
-    if (!currentDoc) return null;
-    return buildWorldContext(currentDoc.id);
-  }, [currentDoc?.id]);
-  const chatTagOptions = useLiveQuery(
+  const worldbuildContext = useSupabaseQuery(
+    async () => {
+      if (!currentDoc) return null;
+      return buildWorldContext(currentDoc.id);
+    },
+    [currentDoc?.id],
+    null,
+    { tables: ["docs", "edges", "tags", "folders"] }
+  );
+  const chatTagOptions = useSupabaseQuery(
     async () => {
       if (!docs || docs.length === 0) return [];
       const docIds = docs.map((doc) => doc.id);
       if (docIds.length === 0) return [];
-      const tags = await db.tags.where("docId").anyOf(docIds).toArray();
+      const tags = await listTagsForDocs(docIds);
       const unique = new Map<string, { type: string; value: string }>();
       tags.forEach((tag) => {
         const key = `${tag.type}:${tag.value}`;
@@ -611,7 +657,8 @@ export default function VaultPage() {
       });
     },
     [activeCampaignId, docs?.length],
-    []
+    [],
+    { tables: ["tags"] }
   );
 
   const worldbuildAnchors = useMemo(() => {
@@ -847,17 +894,9 @@ export default function VaultPage() {
     for (const link of linkTargets) {
       let doc = null;
       if (link.docId) {
-        doc = await db.docs.get(link.docId);
+        doc = await getDocById(link.docId);
       } else if (activeCampaignId) {
-        doc = await db.docs
-          .where("campaignId")
-          .equals(activeCampaignId)
-          .filter(
-            (candidate) =>
-              !candidate.deletedAt &&
-              candidate.title.toLowerCase() === link.targetTitle.toLowerCase()
-          )
-          .first();
+        doc = await getDocByTitle(link.targetTitle, activeCampaignId);
       }
       if (doc && !doc.deletedAt && !seenDocIds.has(doc.id)) {
         seenDocIds.add(doc.id);
@@ -1067,6 +1106,28 @@ export default function VaultPage() {
     }
   };
 
+  const switchToAvailableCampaign = async () => {
+    const nextCampaigns = await listCampaigns();
+    if (nextCampaigns.length > 0) {
+      const next = nextCampaigns[0];
+      setActiveCampaignId(next.id);
+      await setSetting("activeCampaignId", next.id);
+      await seedCampaignIfNeeded(next.id);
+      await migrateImplicitWorld(next.id);
+      await updateAllFolderIndexes(next.id);
+      await migrateIndexDocsToSubfolders(next.id);
+      await removeDocsMatchingSubfolders(next.id);
+      return;
+    }
+    const campaign = await createCampaign("Campaign One", "");
+    setActiveCampaignId(campaign.id);
+    await setSetting("activeCampaignId", campaign.id);
+    await seedCampaignIfNeeded(campaign.id);
+    await migrateImplicitWorld(campaign.id);
+    await updateAllFolderIndexes(campaign.id);
+    await migrateIndexDocsToSubfolders(campaign.id);
+    await removeDocsMatchingSubfolders(campaign.id);
+  };
 
   const applyTemplateTitle = (template: string, title: string) => {
     const lines = template.split("\n");
@@ -1087,14 +1148,10 @@ export default function VaultPage() {
       const alias = aliasRaw?.trim();
       console.debug("[WB] openDocByLink doc id", { id });
       if (alias) {
-        const folderMatch = await db.folders
-          .where("campaignId")
-          .equals(activeCampaignId)
-          .filter(
-            (candidate) =>
-              !candidate.deletedAt && candidate.name.toLowerCase() === alias.toLowerCase()
-          )
-          .first();
+        const folderMatch =
+          (folders ?? []).find(
+            (candidate) => candidate.name.toLowerCase() === alias.toLowerCase()
+          ) ?? null;
         if (folderMatch) {
           await updateAllFolderIndexes(activeCampaignId);
           const indexDoc = await getDocByTitle(`${folderMatch.name} Index`, activeCampaignId);
@@ -1104,18 +1161,14 @@ export default function VaultPage() {
           }
         }
       }
-      const existing = await db.docs.get(id);
+      const existing = await getDocById(id);
       console.debug("[WB] openDocByLink doc found", { found: Boolean(existing) });
       if (existing && !existing.deletedAt) {
         if (currentDoc && existing.id === currentDoc.id && alias) {
-          const folderMatch = await db.folders
-            .where("campaignId")
-            .equals(activeCampaignId)
-            .filter(
-              (candidate) =>
-                !candidate.deletedAt && candidate.name.toLowerCase() === alias.toLowerCase()
-            )
-            .first();
+          const folderMatch =
+            (folders ?? []).find(
+              (candidate) => candidate.name.toLowerCase() === alias.toLowerCase()
+            ) ?? null;
           if (folderMatch) {
             await updateAllFolderIndexes(activeCampaignId);
             const indexDoc = await getDocByTitle(`${folderMatch.name} Index`, activeCampaignId);
@@ -1133,15 +1186,10 @@ export default function VaultPage() {
       const folderName = decodeURIComponent(normalized.slice("folder:".length)).trim();
       if (!folderName) return;
       navigate(`/folder/${encodeURIComponent(folderName)}`);
-      const folder = await db.folders
-        .where("campaignId")
-        .equals(activeCampaignId)
-        .filter(
-          (candidate) =>
-            !candidate.deletedAt &&
-            candidate.name.toLowerCase() === folderName.toLowerCase()
-        )
-        .first();
+      const folder =
+        (folders ?? []).find(
+          (candidate) => candidate.name.toLowerCase() === folderName.toLowerCase()
+        ) ?? null;
       if (folder) {
         await updateAllFolderIndexes(activeCampaignId);
         let indexDoc = await getDocByTitle(`${folder.name} Index`, activeCampaignId);
@@ -1169,15 +1217,10 @@ export default function VaultPage() {
       openDoc(existing.id);
       return;
     }
-    const folder = await db.folders
-      .where("campaignId")
-      .equals(activeCampaignId)
-      .filter(
-        (candidate) =>
-          !candidate.deletedAt &&
-          candidate.name.toLowerCase() === normalized.toLowerCase()
-      )
-      .first();
+    const folder =
+      (folders ?? []).find(
+        (candidate) => candidate.name.toLowerCase() === normalized.toLowerCase()
+      ) ?? null;
     if (folder) {
       await updateAllFolderIndexes(activeCampaignId);
       const indexDoc = await getDocByTitle(`${folder.name} Index`, activeCampaignId);
@@ -1336,6 +1379,7 @@ export default function VaultPage() {
               onUpdateCampaign={(campaignId, updates) => {
                 updateCampaign(campaignId, updates).catch(() => undefined);
               }}
+              onOpenSettings={(campaignId) => navigate(`/campaign/${campaignId}/settings`)}
             />
             <Sidebar
               folders={folders ?? []}
@@ -1444,6 +1488,18 @@ export default function VaultPage() {
                 }
                 navigate("/");
               }}
+              onShareSnippet={({ text, startOffset, endOffset }) => {
+                if (!currentDoc || !activeCampaignId || !user) return;
+                createSharedSnippet(
+                  activeCampaignId,
+                  currentDoc.id,
+                  text,
+                  user.id,
+                  startOffset,
+                  endOffset
+                ).catch(() => undefined);
+              }}
+              canShareSnippet={canShareSnippets}
               npcCreatures={(bestiaryReferences ?? []).map((entry) => ({
                 id: entry.id,
                 name: entry.name,

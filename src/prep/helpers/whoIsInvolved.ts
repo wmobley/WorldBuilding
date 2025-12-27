@@ -1,6 +1,6 @@
-import { db } from "../../vault/db";
 import type { Doc, Folder } from "../../vault/types";
 import { buildWorldContext } from "../context";
+import { getDocById, listDocs, listEdgesFromDocs, listFolders } from "../../vault/queries";
 
 export type InvolvedEntity = {
   name: string;
@@ -51,14 +51,10 @@ export async function whoIsInvolved(currentDocId: string): Promise<InvolvedEntit
   const context = await buildWorldContext(currentDocId);
   if (!context) return [];
 
-  const currentDoc = await db.docs.get(currentDocId);
+  const currentDoc = await getDocById(currentDocId);
   if (!currentDoc || currentDoc.deletedAt) return [];
 
-  const folders = await db.folders
-    .where("campaignId")
-    .equals(currentDoc.campaignId)
-    .filter((folder) => !folder.deletedAt)
-    .toArray();
+  const folders = await listFolders(currentDoc.campaignId);
   const folderMap = new Map<string, Folder>(folders.map((folder) => [folder.id, folder]));
 
   const candidates = new Map<
@@ -89,16 +85,14 @@ export async function whoIsInvolved(currentDocId: string): Promise<InvolvedEntit
     const peopleFolderIds = peopleFolders.map((folder) => folder.id);
     const peopleDocs =
       peopleFolderIds.length > 0
-        ? await db.docs
-            .where("folderId")
-            .anyOf(peopleFolderIds)
-            .filter((doc) => !doc.deletedAt)
-            .toArray()
+        ? (await listDocs(currentDoc.campaignId)).filter((doc) =>
+            peopleFolderIds.includes(doc.folderId ?? "")
+          )
         : ([] as Doc[]);
     const peopleDocIds = new Set(peopleDocs.map((doc) => doc.id));
     const peopleLookup = new Map(peopleDocs.map((doc) => [doc.id, doc]));
     if (peopleDocIds.size > 0) {
-      const edges = await db.edges.where("fromDocId").anyOf(sourceDocIds).toArray();
+      const edges = await listEdgesFromDocs(sourceDocIds);
       const sourceLookup = new Map(
         [...context.linkedDocs, ...context.backlinks].map((doc) => [doc.id, doc])
       );

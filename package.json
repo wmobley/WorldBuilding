@@ -9,14 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@primer/octicons-react": "^19.8.0",
     "@codemirror/autocomplete": "^6.18.1",
     "@codemirror/lang-markdown": "^6.3.2",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.27.0",
+    "@primer/octicons-react": "^19.8.0",
+    "@supabase/supabase-js": "^2.89.0",
     "codemirror": "^6.0.1",
-    "dexie": "^4.0.8",
-    "dexie-react-hooks": "^1.1.7",
     "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

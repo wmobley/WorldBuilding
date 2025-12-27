@@ -9,6 +9,7 @@ import {
   ListUnorderedIcon,
   ListOrderedIcon,
   TasklistIcon,
+  ShareIcon,
   TrashIcon
 } from "@primer/octicons-react";
 import type { Doc, Folder } from "../vault/types";
@@ -33,6 +34,8 @@ export default function PagePanel({
   onDeleteDoc,
   onOpenFolder,
   onOpenHome,
+  onShareSnippet,
+  canShareSnippet,
   npcCreatures,
   npcCreatureId,
   onUpdateNpcCreature,
@@ -56,6 +59,12 @@ export default function PagePanel({
   onDeleteDoc: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenHome: () => void;
+  onShareSnippet?: (snippet: {
+    text: string;
+    startOffset: number;
+    endOffset: number;
+  }) => void;
+  canShareSnippet?: boolean;
   npcCreatures?: Array<{ id: string; name: string; source: string }>;
   npcCreatureId?: string | null;
   onUpdateNpcCreature?: (creatureId: string | null) => void;
@@ -102,6 +111,17 @@ export default function PagePanel({
       </div>
     );
   }
+
+  const handleShareSnippet = () => {
+    if (!onShareSnippet) return;
+    const selection = editorRef.current?.getSelection();
+    if (!selection || !selection.text.trim()) return;
+    onShareSnippet({
+      text: selection.text,
+      startOffset: selection.from,
+      endOffset: selection.to
+    });
+  };
 
   return (
     <div id="page-panel" className="page-panel p-8">
@@ -278,6 +298,16 @@ export default function PagePanel({
             >
               <LinkIcon size={16} />
             </button>
+            {onShareSnippet && (canShareSnippet ?? true) && (
+              <button
+                onClick={handleShareSnippet}
+                data-tooltip="Share selection"
+                className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+                aria-label="Share selection"
+              >
+                <ShareIcon size={16} />
+              </button>
+            )}
             <button
               onClick={() => editorRef.current?.wrapSelection("\"", "\"")}
               data-tooltip="Inline quote"

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLiveQuery } from "dexie-react-hooks";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
 import AppShell from "../ui/AppShell";
 import HeaderBar from "../ui/HeaderBar";
 import CampaignPanel from "../ui/CampaignPanel";
 import CampaignModal from "../ui/components/CampaignModal";
-import { db } from "../vault/db";
 import {
   createCampaign,
   getDocByTitle,
   getSetting,
   listCampaigns,
+  listDocs,
   setSetting,
   updateCampaign
 } from "../vault/queries";
@@ -27,19 +27,23 @@ export default function TimelinePage() {
   const [query, setQuery] = useState("");
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
 
-  const campaigns = useLiveQuery(() => listCampaigns(), [], []);
+  const campaigns = useSupabaseQuery(() => listCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
   const activeCampaign = useMemo(
     () => (campaigns ?? []).find((campaign) => campaign.id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId]
   );
 
-  const docs = useLiveQuery(
-    () =>
-      activeCampaignId
-        ? db.docs.where("campaignId").equals(activeCampaignId).sortBy("updatedAt")
-        : Promise.resolve([]),
+  const docs = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      const list = await listDocs(activeCampaignId);
+      return list.sort((a, b) => a.updatedAt - b.updatedAt);
+    },
     [activeCampaignId],
-    []
+    [],
+    { tables: ["docs"] }
   );
 
   const entries = useMemo(() => buildTimelineEntries(docs ?? []), [docs]);
@@ -101,7 +105,7 @@ export default function TimelinePage() {
         return;
       }
 
-      const existing = await db.campaigns.toArray();
+      const existing = await listCampaigns();
       if (existing.length > 0) {
         const first = existing[0];
         setActiveCampaignId(first.id);
@@ -176,6 +180,7 @@ export default function TimelinePage() {
             if (!campaignId) return;
             updateCampaign(campaignId, updates).catch(() => undefined);
           }}
+          onOpenSettings={(campaignId) => navigate(`/campaign/${campaignId}/settings`)}
         />
       }
       page={

@@ -3,8 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Modal from "../ui/components/Modal";
 import SessionVideo from "../session/SessionVideo";
 import { useSession } from "../session/SessionContext";
-import { db } from "../vault/db";
-import { saveDocContent } from "../vault/queries";
+import { getDocById, saveDocContent } from "../vault/queries";
 import type { Doc } from "../vault/types";
 
 const formatTimestamp = (timestamp: number) => {
@@ -79,8 +78,7 @@ export default function SessionPage() {
       setLastDoc(null);
       return;
     }
-    db.docs
-      .get(lastDocId)
+    getDocById(lastDocId)
       .then((doc) => setLastDoc(doc ?? null))
       .catch(() => setLastDoc(null));
   }, [summaryOpen]);

@@ -1,6 +1,6 @@
-import { db } from "../../vault/db";
-import type { Doc, Folder, Tag } from "../../vault/types";
+import type { Folder, Tag } from "../../vault/types";
 import { buildWorldContext } from "../context";
+import { getDocById, listFolders, listTagsForDocs } from "../../vault/queries";
 
 export type EncounterSuggestion = {
   environment: string;
@@ -44,14 +44,10 @@ export async function suggestEncounter(
   const context = await buildWorldContext(currentDocId);
   if (!context) return [];
 
-  const currentDoc = await db.docs.get(currentDocId);
+  const currentDoc = await getDocById(currentDocId);
   if (!currentDoc || currentDoc.deletedAt) return [];
 
-  const folders = await db.folders
-    .where("campaignId")
-    .equals(currentDoc.campaignId)
-    .filter((folder) => !folder.deletedAt)
-    .toArray();
+  const folders = await listFolders(currentDoc.campaignId);
   const folderMap = new Map<string, Folder>(folders.map((folder) => [folder.id, folder]));
 
   const ecosystemTags = context.currentDoc.tags
@@ -70,7 +66,7 @@ export async function suggestEncounter(
 
   const relatedTags =
     relatedDocIds.length > 0
-      ? await db.tags.where("docId").anyOf(relatedDocIds).toArray()
+      ? await listTagsForDocs(relatedDocIds)
       : ([] as Tag[]);
 
   const creatureTags =

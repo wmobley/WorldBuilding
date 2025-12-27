@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Campaign, Doc } from "../vault/types";
 import { dmItems, referenceShelf } from "../lib/referenceData";
+import { useAuth } from "../auth/AuthGate";
 
 export default function HeaderBar({
   docs,
@@ -28,11 +29,14 @@ export default function HeaderBar({
   const profileRef = useRef<HTMLDivElement | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const activeCampaign = useMemo(
     () => campaigns?.find((campaign) => campaign.id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId]
   );
+  const singleCampaign = (campaigns?.length ?? 0) === 1 ? campaigns?.[0] ?? null : null;
+  const subtitle = singleCampaign?.name ?? activeCampaign?.name ?? "Spellbook Vault";
   const sessionRoomId = activeCampaign?.name?.trim() || "Session";
 
   useEffect(() => {
@@ -62,14 +66,14 @@ export default function HeaderBar({
       <div className="flex items-center gap-4">
         <div className="text-2xl font-display tracking-wide text-ink">Worldbuilder</div>
         <div className="text-sm font-ui text-ink-soft uppercase tracking-[0.2em]">
-          Spellbook Vault
+          {subtitle}
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {campaigns && campaigns.length > 0 && onSelectCampaign && (
-          <div className="hidden md:flex items-center gap-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+        {onSelectCampaign && (
+          <div className="flex items-center gap-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
             <select
-              value=""
+              value={activeCampaignId ?? ""}
               onChange={(event) => {
                 const value = event.target.value;
                 if (value === "__new__") {
@@ -82,9 +86,11 @@ export default function HeaderBar({
               className="rounded-full border border-page-edge bg-parchment/80 px-3 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft"
             >
               <option value="" disabled>
-                List of campaigns
+                {campaigns && campaigns.length > 0
+                  ? "List of campaigns"
+                  : "No campaigns"}
               </option>
-              {campaigns.map((campaign) => (
+              {(campaigns ?? []).map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
                   {campaign.name}
                 </option>
@@ -199,6 +205,11 @@ export default function HeaderBar({
           </button>
           {profileOpen && (
             <div className="absolute right-0 mt-2 w-40 rounded-2xl border border-page-edge bg-parchment/95 shadow-page p-2 z-10">
+              {user?.email && (
+                <div className="px-3 py-2 text-[10px] font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  {user.email}
+                </div>
+              )}
               <button
                 onClick={() => {
                   onOpenSettings?.();
@@ -208,6 +219,16 @@ export default function HeaderBar({
                 data-tooltip="Open settings"
               >
                 Settings
+              </button>
+              <button
+                onClick={() => {
+                  signOut().catch(() => undefined);
+                  setProfileOpen(false);
+                }}
+                className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                data-tooltip="Sign out"
+              >
+                Sign out
               </button>
             </div>
           )}

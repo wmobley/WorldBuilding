@@ -5,7 +5,7 @@ img
 # IntelliJ project files
 .idea/
 *.iml
-
+.env
 # Visual Studio Code project files
 .vscode/
 

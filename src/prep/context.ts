@@ -1,6 +1,14 @@
-import { db } from "../vault/db";
 import type { Doc, Folder, Tag } from "../vault/types";
 import { isIndexDoc } from "../vault/indexing";
+import {
+  getDocById,
+  graphKHopDocs,
+  listDocs,
+  listDocsByIds,
+  listDocsWithTag,
+  listFolders,
+  listTagsForDoc
+} from "../vault/queries";
 
 export type WorldContext = {
   currentDoc: {
@@ -35,20 +43,24 @@ function sortDocsByTitle(a: Doc, b: Doc) {
 }
 
 export async function buildWorldContext(currentDocId: string): Promise<WorldContext | null> {
-  const currentDoc = await db.docs.get(currentDocId);
+  const currentDoc = await getDocById(currentDocId);
   if (!currentDoc || currentDoc.deletedAt) return null;
 
-  const tags = await db.tags.where("docId").equals(currentDocId).toArray();
-  const outgoingEdges = await db.edges.where("fromDocId").equals(currentDocId).toArray();
-  const incomingEdges = await db.edges.where("toDocId").equals(currentDocId).toArray();
+  const tags = await listTagsForDoc(currentDocId);
+  const outgoing = await graphKHopDocs(currentDoc.campaignId, currentDocId, 1, "out");
+  const incoming = await graphKHopDocs(currentDoc.campaignId, currentDocId, 1, "in");
 
-  const linkedDocsRaw = await db.docs.bulkGet(outgoingEdges.map((edge) => edge.toDocId));
+  const linkedDocsRaw = await listDocsByIds(
+    outgoing.filter((entry) => entry.hop === 1).map((entry) => entry.docId)
+  );
   const linkedDocs = linkedDocsRaw
     .filter((doc): doc is Doc => Boolean(doc && !doc.deletedAt))
     .filter((doc) => !isIndexDoc(doc))
     .sort(sortDocsByTitle);
 
-  const backlinkDocsRaw = await db.docs.bulkGet(incomingEdges.map((edge) => edge.fromDocId));
+  const backlinkDocsRaw = await listDocsByIds(
+    incoming.filter((entry) => entry.hop === 1).map((entry) => entry.docId)
+  );
   const backlinks = backlinkDocsRaw
     .filter((doc): doc is Doc => Boolean(doc && !doc.deletedAt))
     .filter((doc) => !isIndexDoc(doc))
@@ -63,43 +75,29 @@ export async function buildWorldContext(currentDocId: string): Promise<WorldCont
   );
   const relatedDocsByTag = await Promise.all(
     contextTags.map(async (tag) => {
-      const relatedTags = await db.tags
-        .where("type")
-        .equals(tag.type)
-        .and((entry) => entry.value === tag.value)
-        .toArray();
-      const docIds = relatedTags.map((entry) => entry.docId);
-      const relatedDocsRaw = await db.docs.bulkGet(docIds);
-      const docs = relatedDocsRaw
-        .filter((doc): doc is Doc => Boolean(doc && !doc.deletedAt))
-        .filter((doc) => doc.campaignId === currentDoc.campaignId && doc.id !== currentDoc.id)
+      const docs = await listDocsWithTag(tag.type, tag.value, currentDoc.campaignId);
+      const filtered = docs
+        .filter((doc) => doc.id !== currentDoc.id)
         .filter((doc) => !isIndexDoc(doc))
         .sort(sortDocsByTitle);
-      return { type: tag.type, value: tag.value, docs };
+      return { type: tag.type, value: tag.value, docs: filtered };
     })
   );
 
-  const campaignDocs = await db.docs
-    .where("campaignId")
-    .equals(currentDoc.campaignId)
-    .filter((doc) => !doc.deletedAt)
-    .toArray();
+  const campaignDocs = await listDocs(currentDoc.campaignId);
   const recentlyUpdatedDocs = campaignDocs
     .filter((doc) => !isIndexDoc(doc))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, RECENT_LIMIT);
 
-  const folder = currentDoc.folderId ? await db.folders.get(currentDoc.folderId) : null;
-  const siblingsRaw = await db.docs
-    .where("campaignId")
-    .equals(currentDoc.campaignId)
-    .filter(
-      (doc) =>
-        !doc.deletedAt &&
-        doc.id !== currentDoc.id &&
-        doc.folderId === (currentDoc.folderId ?? null)
-    )
-    .toArray();
+  const folders = await listFolders(currentDoc.campaignId);
+  const folder = currentDoc.folderId
+    ? folders.find((entry) => entry.id === currentDoc.folderId) ?? null
+    : null;
+  const siblingsRaw = campaignDocs.filter(
+    (doc) =>
+      doc.id !== currentDoc.id && doc.folderId === (currentDoc.folderId ?? null)
+  );
   const siblings = siblingsRaw
     .filter((doc) => !isIndexDoc(doc))
     .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0) || sortDocsByTitle(a, b))

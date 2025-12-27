@@ -12,8 +12,7 @@ import { createId } from "../lib/id";
 import { createWebConnectRoom } from "../lib/webConnect";
 import { rollDiceExpression } from "../lib/diceRoller";
 import { useDebouncedCallback } from "../lib/useDebouncedCallback";
-import { db } from "../vault/db";
-import { getSetting, saveSessionNotes } from "../vault/queries";
+import { getSessionNotes, getSetting, saveSessionNotes } from "../vault/queries";
 import type { SessionNotes } from "../vault/types";
 
 type CaptionChunk = {
@@ -177,8 +176,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!roomId) return;
-    db.sessionNotes
-      .get(roomId)
+    getSessionNotes(roomId)
       .then((sessionNotes) => {
         if (!sessionNotes) {
           if (!notesHydratedRef.current) {
@@ -202,7 +200,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       content,
       updatedAt: Date.now()
     };
-    // TODO: Sync session notes to Supabase once persistence is enabled.
     saveSessionNotes(roomId, payload).catch(() => undefined);
   }, 400);
 

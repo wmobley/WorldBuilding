@@ -1,25 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLiveQuery } from "dexie-react-hooks";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
 import JSZip from "jszip";
 import AppShell from "../ui/AppShell";
 import HeaderBar from "../ui/HeaderBar";
 import CampaignPanel from "../ui/CampaignPanel";
 import CampaignModal from "../ui/components/CampaignModal";
 import ConfirmModal from "../ui/components/ConfirmModal";
-import { db } from "../vault/db";
 import {
   createCampaign,
   createDoc,
   createFolder,
   getDocByTitle,
   getSetting,
+  listArchivedCampaigns,
   listCampaigns,
+  listDocs,
+  listEdgesFromDocs,
+  listFolders,
+  listAllReferences,
+  listTagsForDocs,
   setSetting,
+  unarchiveCampaign,
   updateAllFolderIndexes,
   updateCampaign,
   saveDocContent
 } from "../vault/queries";
+import { supabase } from "../lib/supabase";
+import { formatRelativeTime } from "../lib/text";
 import type { Doc, Edge, Folder, Tag } from "../vault/types";
 import { seedCampaignIfNeeded, migrateImplicitWorld } from "../vault/seed";
 import { isIndexDoc } from "../vault/indexing";
@@ -83,18 +91,47 @@ export default function SettingsPage() {
   const [ollamaDirty, setOllamaDirty] = useState(false);
   const [ollamaSaved, setOllamaSaved] = useState(false);
 
-  const campaigns = useLiveQuery(() => listCampaigns(), [], []);
+  const mapFolderRow = (row: any): Folder => ({
+    id: row.id,
+    name: row.name,
+    parentFolderId: row.parent_folder_id ?? null,
+    campaignId: row.campaign_id,
+    shared: Boolean(row.shared ?? false),
+    deletedAt: row.deleted_at ?? null
+  });
+
+  const mapDocRow = (row: any): Doc => ({
+    id: row.id,
+    folderId: row.folder_id ?? null,
+    title: row.title,
+    body: row.body ?? "",
+    updatedAt: Number(row.updated_at),
+    campaignId: row.campaign_id,
+    shared: Boolean(row.shared ?? false),
+    sortIndex: row.sort_index ?? undefined,
+    deletedAt: row.deleted_at ?? null
+  });
+
+
+  const campaigns = useSupabaseQuery(() => listCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
+  const archivedCampaigns = useSupabaseQuery(() => listArchivedCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
   const activeCampaign = useMemo(
     () => (campaigns ?? []).find((campaign) => campaign.id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId]
   );
-  const docs = useLiveQuery(
-    () =>
-      activeCampaignId
-        ? db.docs.where("campaignId").equals(activeCampaignId).sortBy("title")
-        : Promise.resolve([]),
+  const docs = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      const list = await listDocs(activeCampaignId);
+      return list.sort((a, b) => a.title.localeCompare(b.title));
+    },
     [activeCampaignId],
-    []
+    [],
+    { tables: ["docs"] }
   );
 
   useEffect(() => {
@@ -107,7 +144,7 @@ export default function SettingsPage() {
         return;
       }
 
-      const existing = await db.campaigns.toArray();
+      const existing = await listCampaigns();
       if (existing.length > 0) {
         const first = existing[0];
         setActiveCampaignId(first.id);
@@ -289,18 +326,18 @@ export default function SettingsPage() {
 
   const buildVaultExport = async (): Promise<VaultExport | null> => {
     if (!activeCampaignId) return null;
-    const [folders, docs] = await Promise.all([
-      db.folders.where("campaignId").equals(activeCampaignId).toArray(),
-      db.docs.where("campaignId").equals(activeCampaignId).toArray()
+    const [folderRows, docRows] = await Promise.all([
+      supabase.from("folders").select("*").eq("campaign_id", activeCampaignId),
+      supabase.from("docs").select("*").eq("campaign_id", activeCampaignId)
     ]);
+    if (folderRows.error) console.error("Supabase error in buildVaultExport:folders", folderRows.error);
+    if (docRows.error) console.error("Supabase error in buildVaultExport:docs", docRows.error);
+    const folders = (folderRows.data ?? []).map(mapFolderRow);
+    const docs = (docRows.data ?? []).map(mapDocRow);
     const docIds = docs.map((doc) => doc.id);
     const [edges, tags] = await Promise.all([
-      docIds.length > 0
-        ? db.edges.where("fromDocId").anyOf(docIds).toArray()
-        : Promise.resolve([]),
-      docIds.length > 0
-        ? db.tags.where("docId").anyOf(docIds).toArray()
-        : Promise.resolve([])
+      docIds.length > 0 ? listEdgesFromDocs(docIds) : Promise.resolve([]),
+      docIds.length > 0 ? listTagsForDocs(docIds) : Promise.resolve([])
     ]);
     return {
       version: 1,
@@ -328,14 +365,18 @@ export default function SettingsPage() {
     if (!activeCampaignId) return;
     setVaultTransferState({ active: true, label: "Importing vault..." });
 
-    const existingFolders = await db.folders
-      .where("campaignId")
-      .equals(activeCampaignId)
-      .toArray();
-    const existingDocs = await db.docs
-      .where("campaignId")
-      .equals(activeCampaignId)
-      .toArray();
+    const [existingFolderRows, existingDocRows] = await Promise.all([
+      supabase.from("folders").select("*").eq("campaign_id", activeCampaignId),
+      supabase.from("docs").select("*").eq("campaign_id", activeCampaignId)
+    ]);
+    if (existingFolderRows.error) {
+      console.error("Supabase error in applyVaultImport:folders", existingFolderRows.error);
+    }
+    if (existingDocRows.error) {
+      console.error("Supabase error in applyVaultImport:docs", existingDocRows.error);
+    }
+    const existingFolders = (existingFolderRows.data ?? []).map(mapFolderRow);
+    const existingDocs = (existingDocRows.data ?? []).map(mapDocRow);
     const existingFolderIds = new Set(existingFolders.map((folder) => folder.id));
     const existingDocIds = new Set(existingDocs.map((doc) => doc.id));
 
@@ -395,9 +436,12 @@ export default function SettingsPage() {
 
     const nextEdges = payload.edges
       .map((edge) => ({
+        campaignId: activeCampaignId,
         fromDocId: docIdMap.get(edge.fromDocId) ?? edge.fromDocId,
         toDocId: docIdMap.get(edge.toDocId) ?? edge.toDocId,
-        linkText: edge.linkText
+        linkText: edge.linkText,
+        edgeType: edge.edgeType ?? "link",
+        weight: edge.weight ?? 1
       }))
       .filter((edge) => edge.fromDocId && edge.toDocId);
 
@@ -409,31 +453,83 @@ export default function SettingsPage() {
       }))
       .filter((tag) => tag.docId);
 
-    await db.transaction("rw", db.folders, db.docs, db.edges, db.tags, async () => {
-      if (mode === "overwrite") {
-        const docIds = existingDocs.map((doc) => doc.id);
-        if (docIds.length > 0) {
-          await db.edges.where("fromDocId").anyOf(docIds).delete();
-          await db.edges.where("toDocId").anyOf(docIds).delete();
-          await db.tags.where("docId").anyOf(docIds).delete();
-          await db.docs.bulkDelete(docIds);
+    const batchInsert = async (table: string, rows: Record<string, unknown>[]) => {
+      const chunkSize = 500;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const slice = rows.slice(i, i + chunkSize);
+        const { error } = await supabase.from(table).insert(slice);
+        if (error) {
+          console.error(`Supabase error in applyVaultImport:${table}`, error);
         }
-        await db.folders.bulkDelete(existingFolders.map((folder) => folder.id));
       }
+    };
 
-      if (nextFolders.length > 0) {
-        await db.folders.bulkPut(nextFolders);
+    if (mode === "overwrite") {
+      const docIds = existingDocs.map((doc) => doc.id);
+      if (docIds.length > 0) {
+        await supabase.from("edges").delete().in("from_doc_id", docIds);
+        await supabase.from("edges").delete().in("to_doc_id", docIds);
+        await supabase.from("tags").delete().in("doc_id", docIds);
+        await supabase.from("docs").delete().in("id", docIds);
       }
-      if (nextDocs.length > 0) {
-        await db.docs.bulkPut(nextDocs);
+      if (existingFolders.length > 0) {
+        await supabase
+          .from("folders")
+          .delete()
+          .in("id", existingFolders.map((folder) => folder.id));
       }
-      if (nextEdges.length > 0) {
-        await db.edges.bulkAdd(nextEdges);
-      }
-      if (nextTags.length > 0) {
-        await db.tags.bulkAdd(nextTags);
-      }
-    });
+    }
+
+    if (nextFolders.length > 0) {
+      await batchInsert(
+        "folders",
+        nextFolders.map((folder) => ({
+          id: folder.id,
+          campaign_id: folder.campaignId,
+          name: folder.name,
+          parent_folder_id: folder.parentFolderId,
+          deleted_at: folder.deletedAt ?? null
+        }))
+      );
+    }
+    if (nextDocs.length > 0) {
+      await batchInsert(
+        "docs",
+        nextDocs.map((doc) => ({
+          id: doc.id,
+          campaign_id: doc.campaignId,
+          folder_id: doc.folderId,
+          title: doc.title,
+          body: doc.body ?? "",
+          updated_at: doc.updatedAt,
+          sort_index: doc.sortIndex ?? null,
+          deleted_at: doc.deletedAt ?? null
+        }))
+      );
+    }
+    if (nextEdges.length > 0) {
+      await batchInsert(
+        "edges",
+        nextEdges.map((edge) => ({
+          campaign_id: edge.campaignId,
+          from_doc_id: edge.fromDocId,
+          to_doc_id: edge.toDocId,
+          link_text: edge.linkText,
+          edge_type: edge.edgeType ?? "link",
+          weight: edge.weight ?? 1
+        }))
+      );
+    }
+    if (nextTags.length > 0) {
+      await batchInsert(
+        "tags",
+        nextTags.map((tag) => ({
+          doc_id: tag.docId,
+          type: tag.type,
+          value: tag.value
+        }))
+      );
+    }
 
     await updateAllFolderIndexes(activeCampaignId);
     setVaultTransferState({ active: false, label: "Vault import complete." });
@@ -441,11 +537,9 @@ export default function SettingsPage() {
 
   const getOrCreateFolder = async (name: string, parentFolderId: string | null) => {
     if (!activeCampaignId) return null;
-    const existing = await db.folders
-      .where("campaignId")
-      .equals(activeCampaignId)
-      .and((folder) => folder.name === name && folder.parentFolderId === parentFolderId)
-      .first();
+    const existing = (await listFolders(activeCampaignId)).find(
+      (folder) => folder.name === name && folder.parentFolderId === parentFolderId
+    );
     if (existing) return existing;
     return createFolder(name, parentFolderId, activeCampaignId);
   };
@@ -459,14 +553,14 @@ export default function SettingsPage() {
       label: "Preparing files..."
     });
     try {
-    const existingReferences = await db.references.toArray();
-    const makeKey = (slug: string, name: string, source: string) =>
-      `${slug}::${name.toLowerCase()}::${source.toLowerCase()}`;
-    const existingKeys = new Set(
-      existingReferences.map((entry) =>
-        makeKey(entry.slug, entry.name, entry.source || "")
-      )
-    );
+      const existingReferences = await listAllReferences();
+      const makeKey = (slug: string, name: string, source: string) =>
+        `${slug}::${name.toLowerCase()}::${source.toLowerCase()}`;
+      const existingKeys = new Set(
+        existingReferences.map((entry) =>
+          makeKey(entry.slug, entry.name, entry.source || "")
+        )
+      );
       const bumpProcessed = () => {
         setImportState((current) => ({
           ...current,
@@ -474,105 +568,126 @@ export default function SettingsPage() {
         }));
       };
 
-    const ensureWorldFolder = async () => {
-      const importsRoot = await getOrCreateFolder("Imports", null);
-      return getOrCreateFolder("World", importsRoot?.id ?? null);
-    };
-
-    const addWorldEntries = async (entries: { title: string; body: string }[]) => {
-      if (entries.length === 0) return;
-      const worldFolder = await ensureWorldFolder();
-      for (const entry of entries) {
-        const doc = await createDoc(entry.title, worldFolder?.id ?? null, activeCampaignId);
-        const tagLine = "@source:foundry";
-        const body = entry.body ? `${tagLine}\n\n${entry.body}` : tagLine;
-        await saveDocContent(doc.id, body);
-      }
-    };
-
-    const addReferenceEntries = async (
-      entries: { name: string; content: string; source: string; slug: string; rawJson?: string }[]
-    ) => {
-      if (entries.length === 0) return;
-      const toAdd = entries
-        .filter((entry) => entry.name.trim())
-        .map((entry) => ({
-          id: createId(),
-          slug: entry.slug,
-          name: entry.name.trim(),
-          source: entry.source,
-          content: entry.content,
-          rawJson: entry.rawJson
-        }))
-        .filter((entry) => !existingKeys.has(makeKey(entry.slug, entry.name, entry.source)));
-      if (toAdd.length > 0) {
-        await db.references.bulkAdd(toAdd);
-        toAdd.forEach((entry) => {
-          existingKeys.add(makeKey(entry.slug, entry.name, entry.source));
-        });
-      }
-    };
-
-    const processJsonContent = async (raw: string, forcedSource: ImportSource) => {
-      let data: unknown = null;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      const detected = forcedSource === "auto" ? detectImportSource(data) : forcedSource;
-      if (!detected) return;
-      const worldEntries = detected === "foundry" ? extractFoundryEntries(data) : [];
-      const referenceEntries =
-        detected === "foundry" ? extractFoundryReferenceEntries(data) : [];
-      const bestiaryEntries =
-        detected === "5etools" ? extract5eToolsBestiaryEntries(data) : [];
-      const toolEntries =
-        detected === "5etools" ? extract5eToolsReferenceEntries(data) : [];
-      setImportState((current) => ({
-        ...current,
-        label: detected === "foundry" ? "Importing Foundry data..." : "Importing 5e.tools data..."
-      }));
-      await addWorldEntries(worldEntries);
-      await addReferenceEntries(referenceEntries);
-      await addReferenceEntries(
-        bestiaryEntries.map((entry) => ({
-          name: entry.name,
-          content: entry.content,
-          source: entry.source,
-          slug: "bestiary",
-          rawJson: entry.rawJson
-        }))
-      );
-      await addReferenceEntries(toolEntries);
-    };
-
-    const processDbContent = async (raw: string) => {
-      const records: unknown[] = [];
-      raw
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .forEach((line) => {
-          try {
-            records.push(JSON.parse(line));
-          } catch {
-            // Skip malformed lines.
+      const batchInsertReferences = async (rows: typeof existingReferences) => {
+        const chunkSize = 500;
+        for (let i = 0; i < rows.length; i += chunkSize) {
+          const slice = rows.slice(i, i + chunkSize);
+          const { error } = await supabase.from("references").insert(
+            slice.map((entry) => ({
+              id: entry.id,
+              slug: entry.slug,
+              name: entry.name,
+              source: entry.source,
+              content: entry.content,
+              raw_json: entry.rawJson
+            }))
+          );
+          if (error) {
+            console.error("Supabase error in handleImportFiles:references", error);
           }
-        });
-      if (records.length === 0) return;
-      await addWorldEntries(extractFoundryEntries(records));
-      await addReferenceEntries(extractFoundryReferenceEntries(records));
-    };
+        }
+      };
 
-    const processFile = async (file: File, forcedSource: ImportSource) => {
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith(".db")) {
-        await processDbContent(await file.text());
-        return;
-      }
-      await processJsonContent(await file.text(), forcedSource);
-    };
+      const ensureWorldFolder = async () => {
+        const importsRoot = await getOrCreateFolder("Imports", null);
+        return getOrCreateFolder("World", importsRoot?.id ?? null);
+      };
+
+      const addWorldEntries = async (entries: { title: string; body: string }[]) => {
+        if (entries.length === 0) return;
+        const worldFolder = await ensureWorldFolder();
+        for (const entry of entries) {
+          const doc = await createDoc(entry.title, worldFolder?.id ?? null, activeCampaignId);
+          const tagLine = "@source:foundry";
+          const body = entry.body ? `${tagLine}\n\n${entry.body}` : tagLine;
+          await saveDocContent(doc.id, body);
+        }
+      };
+
+      const addReferenceEntries = async (
+        entries: { name: string; content: string; source: string; slug: string; rawJson?: string }[]
+      ) => {
+        if (entries.length === 0) return;
+        const toAdd = entries
+          .filter((entry) => entry.name.trim())
+          .map((entry) => ({
+            id: createId(),
+            slug: entry.slug,
+            name: entry.name.trim(),
+            source: entry.source,
+            content: entry.content,
+            rawJson: entry.rawJson
+          }))
+          .filter((entry) => !existingKeys.has(makeKey(entry.slug, entry.name, entry.source)));
+        if (toAdd.length > 0) {
+          await batchInsertReferences(toAdd);
+          toAdd.forEach((entry) => {
+            existingKeys.add(makeKey(entry.slug, entry.name, entry.source));
+          });
+        }
+      };
+
+      const processJsonContent = async (raw: string, forcedSource: ImportSource) => {
+        let data: unknown = null;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          return;
+        }
+        const detected = forcedSource === "auto" ? detectImportSource(data) : forcedSource;
+        if (!detected) return;
+        const worldEntries = detected === "foundry" ? extractFoundryEntries(data) : [];
+        const referenceEntries =
+          detected === "foundry" ? extractFoundryReferenceEntries(data) : [];
+        const bestiaryEntries =
+          detected === "5etools" ? extract5eToolsBestiaryEntries(data) : [];
+        const toolEntries =
+          detected === "5etools" ? extract5eToolsReferenceEntries(data) : [];
+        setImportState((current) => ({
+          ...current,
+          label:
+            detected === "foundry" ? "Importing Foundry data..." : "Importing 5e.tools data..."
+        }));
+        await addWorldEntries(worldEntries);
+        await addReferenceEntries(referenceEntries);
+        await addReferenceEntries(
+          bestiaryEntries.map((entry) => ({
+            name: entry.name,
+            content: entry.content,
+            source: entry.source,
+            slug: "bestiary",
+            rawJson: entry.rawJson
+          }))
+        );
+        await addReferenceEntries(toolEntries);
+      };
+
+      const processDbContent = async (raw: string) => {
+        const records: unknown[] = [];
+        raw
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .forEach((line) => {
+            try {
+              records.push(JSON.parse(line));
+            } catch {
+              // Skip malformed lines.
+            }
+          });
+        if (records.length === 0) return;
+        await addWorldEntries(extractFoundryEntries(records));
+        await addReferenceEntries(extractFoundryReferenceEntries(records));
+      };
+
+      const processFile = async (file: File, forcedSource: ImportSource) => {
+        const lower = file.name.toLowerCase();
+        if (lower.endsWith(".db")) {
+          await processDbContent(await file.text());
+          return;
+        }
+        await processJsonContent(await file.text(), forcedSource);
+      };
 
       for (const file of files) {
         const lower = file.name.toLowerCase();
@@ -699,6 +814,7 @@ export default function SettingsPage() {
             onUpdateCampaign={(campaignId, updates) => {
               updateCampaign(campaignId, updates).catch(() => undefined);
             }}
+            onOpenSettings={(campaignId) => navigate(`/campaign/${campaignId}/settings`)}
           />
         }
         page={
@@ -711,6 +827,38 @@ export default function SettingsPage() {
             </div>
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="space-y-6">
+                <div className="rounded-2xl border border-page-edge bg-parchment/70 p-5 space-y-4">
+                  <div className="font-ui text-xs uppercase tracking-[0.18em] text-ink-soft">
+                    Archived Campaigns
+                  </div>
+                  {(archivedCampaigns ?? []).length === 0 ? (
+                    <p className="text-sm text-ink-soft">No archived campaigns.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(archivedCampaigns ?? []).map((campaign) => (
+                        <div
+                          key={campaign.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <div className="font-body text-ink">{campaign.name}</div>
+                            <div className="text-xs text-ink-soft">
+                              Archived {campaign.archivedAt ? formatRelativeTime(campaign.archivedAt) : "recently"}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() =>
+                              unarchiveCampaign(campaign.id).catch(() => undefined)
+                            }
+                            className="rounded-full border border-page-edge px-3 py-1 text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
+                          >
+                            Unarchive
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="rounded-2xl border border-page-edge bg-parchment/70 p-5 space-y-4">
                   <div className="font-ui text-xs uppercase tracking-[0.18em] text-ink-soft">
                     Import Files

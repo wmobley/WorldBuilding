@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useLiveQuery } from "dexie-react-hooks";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
 import AppShell from "../ui/AppShell";
 import HeaderBar from "../ui/HeaderBar";
 import MarkdownPreview from "../ui/MarkdownPreview";
@@ -11,7 +11,6 @@ import { summarizeMonster } from "../lib/monster";
 import MonsterStatBlock from "../ui/MonsterStatBlock";
 import { usePanelCollapse } from "../ui/usePanelCollapse";
 import { ChevronDownIcon, ChevronUpIcon } from "@primer/octicons-react";
-import { db } from "../vault/db";
 import { render5eToolsMarkdown } from "../lib/importExport";
 import { getTableColumns, summarizeReference, buildReferenceRow } from "../lib/referenceTables";
 import { generateEncounter } from "../lib/encounter";
@@ -26,7 +25,10 @@ import {
   getDocByTitle,
   getSetting,
   listCampaigns,
+  listDocs,
+  listFolders,
   listReferencesBySlug,
+  listAllReferences,
   setSetting,
   setNpcProfile,
   createFolder,
@@ -78,31 +80,39 @@ export default function ReferencePage() {
     [slug]
   );
 
-  const references = useLiveQuery(
+  const references = useSupabaseQuery(
     () => (slug ? listReferencesBySlug(slug) : Promise.resolve([])),
-    [slug]
+    [slug],
+    [],
+    { tables: ["references"] }
   );
-  const dmCards = useLiveQuery(
+  const dmCards = useSupabaseQuery(
     () => (activeCampaignId ? listDmScreenCards(activeCampaignId) : Promise.resolve([])),
     [activeCampaignId],
-    []
-  );
-  const dmDocs = useLiveQuery(
-    () =>
-      activeCampaignId
-        ? db.docs.where("campaignId").equals(activeCampaignId).sortBy("title")
-        : Promise.resolve([]),
-    [activeCampaignId],
-    []
-  );
-  const dmReferences = useLiveQuery(
-    () => (slug === "dm-screen" ? db.references.orderBy("name").toArray() : Promise.resolve([])),
-    [slug]
-  );
-  const bestiaryAll = useLiveQuery(
-    () => db.references.where("slug").equals("bestiary").toArray(),
     [],
-    []
+    { tables: ["dm_screen_cards"] }
+  );
+  const dmDocs = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      const list = await listDocs(activeCampaignId);
+      return list.sort((a, b) => a.title.localeCompare(b.title));
+    },
+    [activeCampaignId],
+    [],
+    { tables: ["docs"] }
+  );
+  const dmReferences = useSupabaseQuery(
+    () => (slug === "dm-screen" ? listAllReferences() : Promise.resolve([])),
+    [slug],
+    [],
+    { tables: ["references"] }
+  );
+  const bestiaryAll = useSupabaseQuery(
+    () => listReferencesBySlug("bestiary"),
+    [],
+    [],
+    { tables: ["references"] }
   );
 
   const tableSlugs = useMemo(
@@ -122,11 +132,15 @@ export default function ReferencePage() {
     []
   );
 
-  const campaigns = useLiveQuery(() => listCampaigns(), [], []);
+  const campaigns = useSupabaseQuery(() => listCampaigns(), [], [], {
+    tables: ["campaigns"]
+  });
 
-  const activeReference = useLiveQuery(
+  const activeReference = useSupabaseQuery(
     () => (activeId ? getReferenceById(activeId) : Promise.resolve(undefined)),
-    [activeId]
+    [activeId],
+    undefined,
+    { tables: ["references"] }
   );
 
   const handleCreateCampaign = () => {
@@ -205,11 +219,10 @@ export default function ReferencePage() {
     parentFolderId: string | null,
     campaignId: string
   ) => {
-    const existing = await db.folders
-      .where("campaignId")
-      .equals(campaignId)
-      .and((folder) => folder.name === name && folder.parentFolderId === parentFolderId)
-      .first();
+    const existing = (await listFolders(campaignId)).find(
+      (folder) =>
+        folder.name === name && folder.parentFolderId === parentFolderId
+    );
     if (existing) return existing;
     return createFolder(name, parentFolderId, campaignId);
   };
