@@ -781,11 +781,13 @@ export async function archiveCampaign(campaignId: string) {
 }
 
 export async function unarchiveCampaign(campaignId: string) {
+  console.debug("[WB] unarchiveCampaign request", { campaignId });
   const { error } = await supabase
     .from("campaigns")
     .update({ archived_at: null, updated_at: Date.now() })
     .eq("id", campaignId);
   logSupabaseError("unarchiveCampaign", error);
+  console.debug("[WB] unarchiveCampaign response", { error });
   return error ?? null;
 }
 

@@ -230,6 +230,7 @@ export default function CampaignSettingsPage() {
   };
 
   const handleUnarchive = async () => {
+    console.debug("[WB] unarchive click", { activeCampaignId, role });
     if (!activeCampaignId) return;
     if (role !== "dm") {
       setArchiveStatus("error");
@@ -239,6 +240,7 @@ export default function CampaignSettingsPage() {
     setArchiveStatus("idle");
     setArchiveMessage("");
     const error = await unarchiveCampaign(activeCampaignId);
+    console.debug("[WB] unarchive result", { error });
     if (error) {
       setArchiveStatus("error");
       setArchiveMessage("Could not unarchive the campaign.");

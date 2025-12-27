@@ -48,6 +48,10 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [archiveActionMessage, setArchiveActionMessage] = useState("");
+  const [archiveActionStatus, setArchiveActionStatus] = useState<"idle" | "success" | "error">(
+    "idle"
+  );
   const [importSource, setImportSource] = useState<ImportSource>("auto");
   const [importFiles, setImportFiles] = useState<FileList | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -820,7 +824,15 @@ export default function SettingsPage() {
         page={
           <div id="settings-page" className="page-panel p-8 space-y-6">
             <div className="chapter-divider pb-4 space-y-2">
-              <div className="text-3xl font-display">Settings</div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-3xl font-display">Settings</div>
+                <button
+                  onClick={() => navigate("/")}
+                  className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
+                >
+                  Back to World
+                </button>
+              </div>
               <div className="text-sm font-ui uppercase tracking-[0.18em] text-ink-soft">
                 Import, export, and appearance preferences
               </div>
@@ -847,15 +859,36 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <button
-                            onClick={() =>
-                              unarchiveCampaign(campaign.id).catch(() => undefined)
-                            }
+                            onClick={async () => {
+                              console.debug("[WB] unarchive from settings", {
+                                campaignId: campaign.id
+                              });
+                              setArchiveActionStatus("idle");
+                              setArchiveActionMessage("");
+                              const error = await unarchiveCampaign(campaign.id);
+                              if (error) {
+                                setArchiveActionStatus("error");
+                                setArchiveActionMessage("Could not unarchive campaign.");
+                                return;
+                              }
+                              setArchiveActionStatus("success");
+                              setArchiveActionMessage("Campaign restored.");
+                            }}
                             className="rounded-full border border-page-edge px-3 py-1 text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
                           >
                             Unarchive
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {archiveActionMessage && (
+                    <div
+                      className={`rounded-xl border border-page-edge px-3 py-2 text-[10px] font-ui uppercase tracking-[0.18em] ${
+                        archiveActionStatus === "error" ? "text-ember" : "text-ink-soft"
+                      }`}
+                    >
+                      {archiveActionMessage}
                     </div>
                   )}
                 </div>

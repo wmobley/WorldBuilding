@@ -64,14 +64,15 @@ export default function HeaderBar({
       className="px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
     >
       <div className="flex items-center gap-4">
-        <div className="text-2xl font-display tracking-wide text-ink">Worldbuilder</div>
-        <div className="text-sm font-ui text-ink-soft uppercase tracking-[0.2em]">
-          {subtitle}
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        {onSelectCampaign && (
-          <div className="flex items-center gap-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="text-2xl font-display tracking-wide text-ink hover:text-ember transition"
+        >
+          Worldbuilder
+        </button>
+        <div className="flex items-center gap-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+          {onSelectCampaign ? (
             <select
               value={activeCampaignId ?? ""}
               onChange={(event) => {
@@ -87,18 +88,22 @@ export default function HeaderBar({
             >
               <option value="" disabled>
                 {campaigns && campaigns.length > 0
-                  ? "List of campaigns"
-                  : "No campaigns"}
+                  ? "Select a world"
+                  : "No worlds"}
               </option>
               {(campaigns ?? []).map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
                   {campaign.name}
                 </option>
               ))}
-              <option value="__new__">Create new campaign…</option>
+              <option value="__new__">Create new world…</option>
             </select>
-          </div>
-        )}
+          ) : (
+            <span>{subtitle}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
         {onNavigateReference && (
           <div
             id="header-nav"
