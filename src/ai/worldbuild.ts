@@ -20,7 +20,17 @@ export type WorldbuildDraft = {
 
 export type WorldbuildResult = {
   id: string;
-  kind: "plotLines" | "cityBuilder" | "adventureHooks" | "highLevelPlot";
+  kind:
+    | "plotLines"
+    | "cityBuilder"
+    | "adventureHooks"
+    | "highLevelPlot"
+    | "placeBuilder"
+    | "regionBuilder"
+    | "countryBuilder"
+    | "townBuilder"
+    | "villageBuilder"
+    | "fortBuilder";
   provider: string;
   contextPreview: string;
   content: string;

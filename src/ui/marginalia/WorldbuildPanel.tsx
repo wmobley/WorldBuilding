@@ -12,6 +12,18 @@ function formatWorldbuildKind(kind: WorldbuildResult["kind"]) {
       return "City Builder";
     case "adventureHooks":
       return "Adventure Hooks";
+    case "placeBuilder":
+      return "Place Builder";
+    case "regionBuilder":
+      return "Region Builder";
+    case "countryBuilder":
+      return "Country Builder";
+    case "townBuilder":
+      return "Town Builder";
+    case "villageBuilder":
+      return "Village Builder";
+    case "fortBuilder":
+      return "Fort Builder";
     default:
       return "Worldbuild";
   }
@@ -36,6 +48,12 @@ export default function WorldbuildPanel({
   onBuildCity,
   onGenerateHooks,
   onGenerateHighLevelPlot,
+  onBuildPlace,
+  onBuildRegion,
+  onBuildCountry,
+  onBuildTown,
+  onBuildVillage,
+  onBuildFort,
   worldbuildResults,
   onSendWorldbuild,
   onInsertWorldbuildContent,
@@ -61,11 +79,23 @@ export default function WorldbuildPanel({
     cityBuilder: boolean;
     adventureHooks: boolean;
     highLevelPlot: boolean;
+    placeBuilder: boolean;
+    regionBuilder: boolean;
+    countryBuilder: boolean;
+    townBuilder: boolean;
+    villageBuilder: boolean;
+    fortBuilder: boolean;
   };
   onGeneratePlotLines: () => void;
   onBuildCity: () => void;
   onGenerateHooks: () => void;
   onGenerateHighLevelPlot: () => void;
+  onBuildPlace: () => void;
+  onBuildRegion: () => void;
+  onBuildCountry: () => void;
+  onBuildTown: () => void;
+  onBuildVillage: () => void;
+  onBuildFort: () => void;
   worldbuildResults: WorldbuildResult[];
   onSendWorldbuild: (resultId: string) => void;
   onInsertWorldbuildContent: (content: string) => void;
@@ -190,6 +220,12 @@ export default function WorldbuildPanel({
                     if (value === "plot") onGeneratePlotLines();
                     if (value === "city") onBuildCity();
                     if (value === "hooks") onGenerateHooks();
+                    if (value === "place") onBuildPlace();
+                    if (value === "region") onBuildRegion();
+                    if (value === "country") onBuildCountry();
+                    if (value === "town") onBuildTown();
+                    if (value === "village") onBuildVillage();
+                    if (value === "fort") onBuildFort();
                     event.target.value = "__placeholder";
                   }}
                   className="mt-2 w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-xs font-ui"
@@ -208,6 +244,24 @@ export default function WorldbuildPanel({
                   </option>
                   <option value="hooks">
                     {worldbuildLoading.adventureHooks ? "Generating..." : "Generate Hooks"}
+                  </option>
+                  <option value="place">
+                    {worldbuildLoading.placeBuilder ? "Generating..." : "Build a Place"}
+                  </option>
+                  <option value="region">
+                    {worldbuildLoading.regionBuilder ? "Generating..." : "Build a Region"}
+                  </option>
+                  <option value="country">
+                    {worldbuildLoading.countryBuilder ? "Generating..." : "Build a Country"}
+                  </option>
+                  <option value="town">
+                    {worldbuildLoading.townBuilder ? "Generating..." : "Build a Town"}
+                  </option>
+                  <option value="village">
+                    {worldbuildLoading.villageBuilder ? "Generating..." : "Build a Village"}
+                  </option>
+                  <option value="fort">
+                    {worldbuildLoading.fortBuilder ? "Generating..." : "Build a Fort"}
                   </option>
                 </select>
               </div>
@@ -327,44 +381,62 @@ export default function WorldbuildPanel({
                   key={result.id}
                   className="rounded-2xl border border-page-edge bg-parchment/70 p-3 space-y-2"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-display">
-                      {formatWorldbuildKind(result.kind)}
-                    </div>
-                    <div className="text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft">
-                      {result.provider}
-                    </div>
-                  </div>
-                  <div className="marginal-note">Context: {result.contextPreview}</div>
-                  {result.status === "error" && result.error && (
-                    <div className="text-xs font-ui text-ember">{result.error}</div>
-                  )}
-                  <div className="max-h-48 overflow-y-auto rounded-xl border border-page-edge bg-parchment/80 p-2 text-xs font-ui whitespace-pre-wrap">
-                    {result.content}
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[11px] font-ui uppercase tracking-[0.18em]">
-                    <button
-                      onClick={() => onSendWorldbuild(result.id)}
-                      disabled={result.status === "sending"}
-                      className="text-ink-soft hover:text-ember disabled:opacity-60"
-                    >
-                      {result.status === "sending" ? "Sending..." : "Send to AI"}
-                    </button>
-                    <button
-                      onClick={() => onInsertWorldbuildContent(result.content)}
-                      className="text-ink-soft hover:text-ember"
-                    >
-                      Insert into Page
-                    </button>
-                    {result.drafts && result.drafts.length > 0 && (
-                      <button
-                        onClick={() => onCreateDraftDocs(result.drafts)}
-                        className="text-ink-soft hover:text-ember"
-                      >
-                        Create Draft Docs...
-                      </button>
-                    )}
-                  </div>
+                  {(() => {
+                    const isPromptOnly =
+                      result.provider.startsWith("Configured:") ||
+                      result.provider.startsWith("Template");
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-display">
+                            {formatWorldbuildKind(result.kind)}
+                          </div>
+                          <div className="text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft">
+                            {result.provider}
+                          </div>
+                        </div>
+                        {result.status === "error" && result.error && (
+                          <div className="text-xs font-ui text-ember">{result.error}</div>
+                        )}
+                        {isPromptOnly ? (
+                          <div className="marginal-note">
+                            Prompt prepared. Send to AI to generate output.
+                          </div>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto rounded-xl border border-page-edge bg-parchment/80 p-2 text-xs font-ui whitespace-pre-wrap">
+                            {result.content}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2 text-[11px] font-ui uppercase tracking-[0.18em]">
+                          <button
+                            onClick={() => onSendWorldbuild(result.id)}
+                            disabled={result.status === "sending"}
+                            className="text-ink-soft hover:text-ember disabled:opacity-60"
+                          >
+                            {result.status === "sending" ? "Sending..." : "Send to AI"}
+                          </button>
+                          {!isPromptOnly && (
+                            <>
+                              <button
+                                onClick={() => onInsertWorldbuildContent(result.content)}
+                                className="text-ink-soft hover:text-ember"
+                              >
+                                Insert into Page
+                              </button>
+                              {result.drafts && result.drafts.length > 0 && (
+                                <button
+                                  onClick={() => onCreateDraftDocs(result.drafts)}
+                                  className="text-ink-soft hover:text-ember"
+                                >
+                                  Create Draft Docs...
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ))
             )}

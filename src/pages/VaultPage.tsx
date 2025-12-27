@@ -72,6 +72,12 @@ import plotLinesPrompt from "../ai/prompts/plotLines.md?raw";
 import cityBuilderPrompt from "../ai/prompts/cityBuilder.md?raw";
 import adventureHooksPrompt from "../ai/prompts/adventureHooks.md?raw";
 import highLevelPlotPrompt from "../ai/prompts/highLevelPlot.md?raw";
+import placeBuilderPrompt from "../ai/prompts/placeBuilder.md?raw";
+import regionBuilderPrompt from "../ai/prompts/regionBuilder.md?raw";
+import countryBuilderPrompt from "../ai/prompts/countryBuilder.md?raw";
+import townBuilderPrompt from "../ai/prompts/townBuilder.md?raw";
+import villageBuilderPrompt from "../ai/prompts/villageBuilder.md?raw";
+import fortBuilderPrompt from "../ai/prompts/fortBuilder.md?raw";
 import { createId } from "../lib/id";
 import { sendPromptToProvider, type AiProvider } from "../ai/client";
 import { parseLinks, parseTags } from "../vault/parser";
@@ -125,7 +131,13 @@ export default function VaultPage() {
     plotLines: false,
     cityBuilder: false,
     adventureHooks: false,
-    highLevelPlot: false
+    highLevelPlot: false,
+    placeBuilder: false,
+    regionBuilder: false,
+    countryBuilder: false,
+    townBuilder: false,
+    villageBuilder: false,
+    fortBuilder: false
   });
   const [draftQueue, setDraftQueue] = useState<{
     drafts: WorldbuildDraft[];
@@ -639,7 +651,13 @@ export default function VaultPage() {
       plotLines: false,
       cityBuilder: false,
       adventureHooks: false,
-      highLevelPlot: false
+      highLevelPlot: false,
+      placeBuilder: false,
+      regionBuilder: false,
+      countryBuilder: false,
+      townBuilder: false,
+      villageBuilder: false,
+      fortBuilder: false
     });
     setDraftQueue(null);
   }, [currentDoc?.id, worldbuildAnchors]);
@@ -740,6 +758,22 @@ export default function VaultPage() {
 
   const handleGenerateHighLevelPlot = () =>
     handleGenerateWorldbuild("highLevelPlot", highLevelPlotPrompt);
+
+  const handleBuildPlace = () =>
+    handleGenerateWorldbuild("placeBuilder", placeBuilderPrompt);
+
+  const handleBuildRegion = () =>
+    handleGenerateWorldbuild("regionBuilder", regionBuilderPrompt);
+
+  const handleBuildCountry = () =>
+    handleGenerateWorldbuild("countryBuilder", countryBuilderPrompt);
+
+  const handleBuildTown = () => handleGenerateWorldbuild("townBuilder", townBuilderPrompt);
+
+  const handleBuildVillage = () =>
+    handleGenerateWorldbuild("villageBuilder", villageBuilderPrompt);
+
+  const handleBuildFort = () => handleGenerateWorldbuild("fortBuilder", fortBuilderPrompt);
 
   const buildExcerpt = (body: string, limit = 360) => {
     const withoutLinks = body.replace(/\[\[([^\]]+)\]\]/g, "$1");
@@ -1450,6 +1484,12 @@ export default function VaultPage() {
               onBuildCity={handleBuildCity}
               onGenerateHooks={handleGenerateHooks}
               onGenerateHighLevelPlot={handleGenerateHighLevelPlot}
+              onBuildPlace={handleBuildPlace}
+              onBuildRegion={handleBuildRegion}
+              onBuildCountry={handleBuildCountry}
+              onBuildTown={handleBuildTown}
+              onBuildVillage={handleBuildVillage}
+              onBuildFort={handleBuildFort}
               onInsertWorldbuildContent={insertWorldbuildContent}
               onCreateDraftDocs={handleCreateDraftDocs}
               onSendWorldbuild={handleSendWorldbuild}

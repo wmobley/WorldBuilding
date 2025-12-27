@@ -49,6 +49,12 @@ export default function Marginalia({
   onBuildCity,
   onGenerateHooks,
   onGenerateHighLevelPlot,
+  onBuildPlace,
+  onBuildRegion,
+  onBuildCountry,
+  onBuildTown,
+  onBuildVillage,
+  onBuildFort,
   onInsertWorldbuildContent,
   onCreateDraftDocs,
   onSendWorldbuild,
@@ -89,11 +95,23 @@ export default function Marginalia({
     cityBuilder: boolean;
     adventureHooks: boolean;
     highLevelPlot: boolean;
+    placeBuilder: boolean;
+    regionBuilder: boolean;
+    countryBuilder: boolean;
+    townBuilder: boolean;
+    villageBuilder: boolean;
+    fortBuilder: boolean;
   };
   onGeneratePlotLines: () => void;
   onBuildCity: () => void;
   onGenerateHooks: () => void;
   onGenerateHighLevelPlot: () => void;
+  onBuildPlace: () => void;
+  onBuildRegion: () => void;
+  onBuildCountry: () => void;
+  onBuildTown: () => void;
+  onBuildVillage: () => void;
+  onBuildFort: () => void;
   onInsertWorldbuildContent: (content: string) => void;
   onCreateDraftDocs: (drafts: NonNullable<WorldbuildResult["drafts"]>) => void;
   onSendWorldbuild: (resultId: string) => void;
@@ -140,6 +158,12 @@ export default function Marginalia({
         onBuildCity={onBuildCity}
         onGenerateHooks={onGenerateHooks}
         onGenerateHighLevelPlot={onGenerateHighLevelPlot}
+        onBuildPlace={onBuildPlace}
+        onBuildRegion={onBuildRegion}
+        onBuildCountry={onBuildCountry}
+        onBuildTown={onBuildTown}
+        onBuildVillage={onBuildVillage}
+        onBuildFort={onBuildFort}
         worldbuildResults={worldbuildResults}
         onSendWorldbuild={onSendWorldbuild}
         onInsertWorldbuildContent={onInsertWorldbuildContent}
