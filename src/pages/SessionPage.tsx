@@ -333,6 +333,16 @@ export default function SessionPage() {
                   <div className="session-nameplate">
                     <span>{participant.displayName}</span>
                   </div>
+                  {participant.isLocal && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button onClick={toggleMute} className="session-control-button">
+                        {muted ? "Unmute Mic" : "Mute Mic"}
+                      </button>
+                      <button onClick={toggleCamera} className="session-control-button">
+                        {cameraOff ? "Camera On" : "Camera Off"}
+                      </button>
+                    </div>
+                  )}
                   <div className="session-captions">
                     {participant.captions.length === 0 ? (
                       <div className="text-xs text-ink-soft/70">
