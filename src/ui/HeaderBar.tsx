@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Campaign, Doc } from "../vault/types";
 import { dmItems, referenceShelf } from "../lib/referenceData";
 
@@ -26,6 +27,13 @@ export default function HeaderBar({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const profileRef = useRef<HTMLDivElement | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const activeCampaign = useMemo(
+    () => campaigns?.find((campaign) => campaign.id === activeCampaignId) ?? null,
+    [campaigns, activeCampaignId]
+  );
+  const sessionRoomId = activeCampaign?.name?.trim() || "Session";
 
   useEffect(() => {
     if (!openMenu && !profileOpen) return;
@@ -109,6 +117,17 @@ export default function HeaderBar({
             </button>
             {openMenu === "dm" && (
               <div className="absolute left-0 top-full mt-2 w-64 rounded-2xl border border-page-edge bg-parchment/95 shadow-page p-2 z-10">
+                <button
+                  onClick={() => {
+                    navigate(`/session/${encodeURIComponent(sessionRoomId)}`);
+                    setOpenMenu(null);
+                  }}
+                  className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                  data-tooltip="Open interactive video room"
+                >
+                  Interactive Video Room
+                </button>
+                <div className="my-1 border-t border-page-edge/60" />
                 {dmItems.map((item) => (
                   <button
                     key={item.slug}
