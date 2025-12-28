@@ -197,6 +197,12 @@ body {
   color: hsl(var(--ink-soft));
 }
 
+.cm-tooltip-autocomplete .cm-completionItem.tag-placeholder .cm-completionLabel {
+  color: hsl(var(--ink-soft));
+  font-style: italic;
+  opacity: 0.7;
+}
+
 .monster-row-details {
   max-height: 0;
   opacity: 0;

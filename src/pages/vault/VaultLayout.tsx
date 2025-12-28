@@ -62,6 +62,7 @@ export default function VaultLayout({
   onPreviewDoc,
   onCursorLink,
   linkOptions,
+  tagOptions,
   onDeleteDoc,
   onOpenFolder,
   onOpenHome,
@@ -158,6 +159,7 @@ export default function VaultLayout({
   onPreviewDoc: (docId: string) => void;
   onCursorLink: (target: string | null) => void;
   linkOptions: LinkOption[];
+  tagOptions: Array<{ type: string; value: string }>;
   onDeleteDoc: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenHome: () => void;
@@ -278,19 +280,20 @@ export default function VaultLayout({
             onPurgeFolder={onPurgeFolder}
           />
         ) : (
-          <PagePanel
-            doc={displayDoc}
-            folders={folders}
-            onTitleChange={onTitleChange}
-            onFolderChange={onFolderChange}
-            onBodyChange={onBodyChange}
-            onOpenLink={onOpenLink}
-            onPreviewDoc={onPreviewDoc}
-            onCursorLink={onCursorLink}
-            linkOptions={linkOptions}
-            mode={pageMode}
-            onModeChange={onModeChange}
-            isDirty={isDirty}
+        <PagePanel
+          doc={displayDoc}
+          folders={folders}
+          onTitleChange={onTitleChange}
+          onFolderChange={onFolderChange}
+          onBodyChange={onBodyChange}
+          onOpenLink={onOpenLink}
+          onPreviewDoc={onPreviewDoc}
+          onCursorLink={onCursorLink}
+          linkOptions={linkOptions}
+          tagOptions={tagOptions}
+          mode={pageMode}
+          onModeChange={onModeChange}
+          isDirty={isDirty}
             lastEdited={lastEdited}
             onDeleteDoc={onDeleteDoc}
             onOpenFolder={onOpenFolder}

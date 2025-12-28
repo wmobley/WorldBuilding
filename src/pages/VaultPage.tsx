@@ -504,6 +504,7 @@ export default function VaultPage() {
             slug: ref.slug
           }))
         ]}
+        tagOptions={chatTagOptions ?? []}
         onDeleteDoc={() => {
           if (!currentDoc) return;
           setDocDeletePrompt(currentDoc);

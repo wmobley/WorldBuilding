@@ -27,6 +27,7 @@ export default function PagePanel({
   onPreviewDoc,
   onCursorLink,
   linkOptions,
+  tagOptions,
   mode,
   onModeChange,
   isDirty,
@@ -57,6 +58,7 @@ export default function PagePanel({
     kind?: "doc" | "reference" | "folder";
     slug?: string;
   }>;
+  tagOptions: Array<{ type: string; value: string }>;
   mode: "edit" | "preview";
   onModeChange: (mode: "edit" | "preview") => void;
   isDirty: boolean;
@@ -364,6 +366,7 @@ export default function PagePanel({
             value={doc.body}
             onChange={onBodyChange}
             linkOptions={linkOptions}
+            tagOptions={tagOptions}
             onPreviewDoc={onPreviewDoc}
             onCursorLink={onCursorLink}
             onMetaClickSelection={onMetaClickSelection}
