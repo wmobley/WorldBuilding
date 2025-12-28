@@ -50,9 +50,13 @@ export default function PagePanel({
   onOpenLink: (title: string) => void;
   onPreviewDoc: (docId: string) => void;
   onCursorLink: (target: string | null) => void;
-  linkOptions: Array<
-    Doc & { kind?: "doc" | "reference" | "folder"; slug?: string }
-  >;
+  linkOptions: Array<{
+    id: string;
+    title: string;
+    body: string;
+    kind?: "doc" | "reference" | "folder";
+    slug?: string;
+  }>;
   mode: "edit" | "preview";
   onModeChange: (mode: "edit" | "preview") => void;
   isDirty: boolean;
@@ -82,7 +86,9 @@ export default function PagePanel({
     folderMap.set(key, list);
   });
 
-  const flattenFolders = (parentId: string | null, depth: number) => {
+  type FolderOption = { folder: Folder; depth: number };
+
+  const flattenFolders = (parentId: string | null, depth: number): FolderOption[] => {
     const children = folderMap.get(parentId) ?? [];
     return children.flatMap((child) => [
       { folder: child, depth },
@@ -90,7 +96,7 @@ export default function PagePanel({
     ]);
   };
 
-  const folderOptions = flattenFolders(null, 0);
+  const folderOptions: FolderOption[] = flattenFolders(null, 0);
   const folderLookup = new Map(folders.map((folder) => [folder.id, folder]));
   const breadcrumbs = [];
   if (doc?.folderId) {

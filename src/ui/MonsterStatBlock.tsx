@@ -30,13 +30,13 @@ export default function MonsterStatBlock({
         <div className="space-y-2">
           {entries.map((entry, index) => {
             const body = renderEntries(entry.entries);
-            const paragraphs = body.split(/\n\n+/).filter(Boolean);
+            const paragraphs: string[] = body.split(/\n\n+/).filter(Boolean);
             return (
               <div key={`${title}-${index}`} className="text-sm font-body text-ink">
                 {entry.name && (
                   <span className="font-semibold text-ink">{entry.name}. </span>
                 )}
-                {paragraphs.map((paragraph, paragraphIndex) => (
+                {paragraphs.map((paragraph: string, paragraphIndex: number) => (
                   <p key={`${title}-${index}-${paragraphIndex}`} className="mt-1 leading-relaxed">
                     {paragraph}
                   </p>

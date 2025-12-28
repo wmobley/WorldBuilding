@@ -2,7 +2,7 @@ type LootTable = {
   name?: string;
   crMin?: number;
   crMax?: number;
-  table?: Array<{ min: number; max: number; coins?: Record<string, string> }>;
+  table?: Array<{ min: number; max: number; coins?: Record<string, string | undefined> }>;
   magicItems?: Array<{ table?: string; qty?: string }>;
   gems?: Array<{ type?: string; qty?: string }>;
   artObjects?: Array<{ type?: string; qty?: string }>;
@@ -11,9 +11,34 @@ type LootTable = {
 type LootData = {
   individual: LootTable[];
   hoard: LootTable[];
-  gems: Array<{ type: string; table: Array<{ min: number; max: number; item: string }> }>;
-  artObjects: Array<{ type: string; table: Array<{ min: number; max: number; item: string }> }>;
-  magicItems: Array<{ table: string; tableName?: string; dice?: string; items: string[] }>;
+  gems: Array<{
+    type: string | number;
+    table: Array<{ min: number; max: number; item: string }> | string[];
+  }>;
+  artObjects: Array<{
+    type: string | number;
+    table: Array<{ min: number; max: number; item: string }> | string[];
+  }>;
+  magicItems: Array<
+    | { table: string; tableName?: string; dice?: string; items: string[] }
+    | {
+        name?: string;
+        source?: string;
+        page?: number;
+        type?: string;
+        table: Array<{
+          min: number;
+          max: number;
+          item?: string;
+          choose?: {
+            fromGroup?: string[];
+            fromGeneric?: string[];
+            fromMatching?: Record<string, string>;
+          };
+          spellLevel?: number;
+        }>;
+      }
+  >;
 };
 
 export type LootResult = {
@@ -52,36 +77,106 @@ export function generateLoot(loot: LootData, cr: number, mode: "individual" | "h
 }
 
 function drawValuables(
-  tables: Array<{ type: string; table: Array<{ min: number; max: number; item: string }> }>,
+  tables: Array<{
+    type: string | number;
+    table: Array<{ min: number; max: number; item: string }> | string[];
+  }>,
   type = "",
   qty = ""
 ) {
   const total = rollDice(qty || "1");
-  const table = tables.find((entry) => entry.type === type);
+  const table = tables.find((entry) => String(entry.type) === String(type));
   if (!table) return [];
   const results: string[] = [];
+  if (table.table.length > 0 && typeof table.table[0] === "string") {
+    for (let i = 0; i < total; i += 1) {
+      const roll = rollDice("1d100");
+      const index = Math.min(
+        Math.max(Math.floor((roll - 1) / 100 * table.table.length), 0),
+        table.table.length - 1
+      );
+      const item = table.table[index] as string | undefined;
+      if (item) results.push(item);
+    }
+    return results;
+  }
   for (let i = 0; i < total; i += 1) {
     const roll = rollDice("1d100");
-    const row = table.table.find((entry) => roll >= entry.min && roll <= entry.max);
+    const row = (table.table as Array<{ min: number; max: number; item: string }>).find(
+      (entry) => roll >= entry.min && roll <= entry.max
+    );
     if (row?.item) results.push(row.item);
   }
   return results;
 }
 
 function drawMagicItems(
-  tables: Array<{ table: string; tableName?: string; dice?: string; items: string[] }>,
+  tables: Array<
+    | { table: string; tableName?: string; dice?: string; items: string[] }
+    | {
+        name?: string;
+        source?: string;
+        page?: number;
+        type?: string;
+        table: Array<{
+          min: number;
+          max: number;
+          item?: string;
+          choose?: {
+            fromGroup?: string[];
+            fromGeneric?: string[];
+            fromMatching?: Record<string, string>;
+          };
+          spellLevel?: number;
+        }>;
+      }
+  >,
   tableName = "",
   qty = ""
 ) {
   const total = rollDice(qty || "1");
-  const table = tables.find((entry) => entry.table === tableName);
+  const table = tables.find((entry) => {
+    if ("items" in entry) {
+      return entry.table === tableName;
+    }
+    const name = entry.name ?? "";
+    const type = entry.type ?? "";
+    return (
+      tableName === name ||
+      tableName === `Magic Item Table ${type}` ||
+      tableName.endsWith(` ${type}`)
+    );
+  });
   if (!table) return [];
   const results: string[] = [];
   for (let i = 0; i < total; i += 1) {
+    if ("items" in table) {
+      const roll = rollDice("1d100");
+      const index = Math.min(
+        Math.max(Math.floor((roll - 1) / 100 * table.items.length), 0),
+        table.items.length - 1
+      );
+      const item = table.items[index];
+      if (item) results.push(item);
+      continue;
+    }
     const roll = rollDice("1d100");
-    const index = Math.min(Math.max(Math.floor((roll - 1) / 100 * table.items.length), 0), table.items.length - 1);
-    const item = table.items[index];
-    if (item) results.push(item);
+    const row = table.table.find((entry) => roll >= entry.min && roll <= entry.max);
+    if (row?.item) {
+      results.push(row.item);
+      continue;
+    }
+    const choices = row?.choose?.fromGroup ?? row?.choose?.fromGeneric ?? [];
+    if (choices.length > 0) {
+      const choiceIndex = Math.floor(Math.random() * choices.length);
+      const pick = choices[choiceIndex];
+      if (pick) results.push(pick);
+      continue;
+    }
+    const matching = row?.choose?.fromMatching;
+    if (matching && Object.keys(matching).length > 0) {
+      results.push(`Magic item matching ${JSON.stringify(matching)}`);
+    }
   }
   return results;
 }

@@ -7,6 +7,8 @@ import {
   createFolder,
   createSharedSnippet,
   getDocByTitle,
+  listDocs,
+  listFolders,
   moveDoc,
   purgeDoc,
   purgeFolder,
@@ -285,8 +287,7 @@ export default function VaultPage() {
     activeCampaignId,
     activeCampaign,
     currentDoc: currentDoc ?? null,
-    worldbuildContext,
-    docs: docs ?? []
+    worldbuildContext
   });
 
   const {
@@ -310,7 +311,6 @@ export default function VaultPage() {
     insertWorldbuildContent,
     handleCreateDraftDocs,
     handleSendWorldbuild,
-    draftQueue,
     activeDraft,
     resolveDraftFolderId,
     buildDraftBody,
@@ -432,9 +432,7 @@ export default function VaultPage() {
         onDeleteFolder={trashFolder}
         onReorderDocs={(folderId, orderedDocIds) => {
           if (!activeCampaignId) return;
-          setDocSortOrder(folderId, activeCampaignId, orderedDocIds).catch(
-            () => undefined
-          );
+          setDocSortOrder(folderId, orderedDocIds).catch(() => undefined);
         }}
         onCreateDoc={handleCreateDoc}
         templates={templates}

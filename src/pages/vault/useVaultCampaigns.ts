@@ -13,7 +13,6 @@ import {
   removeDocsMatchingSubfolders,
   seedCampaignIfNeeded
 } from "../../vault/seed";
-import type { Campaign } from "../../vault/types";
 
 const activateCampaign = async (campaignId: string) => {
   await setSetting("activeCampaignId", campaignId);

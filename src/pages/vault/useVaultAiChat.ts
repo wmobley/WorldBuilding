@@ -23,7 +23,6 @@ type UseVaultAiChatInput = {
   activeCampaign: Campaign | null;
   currentDoc: Doc | null;
   worldbuildContext: WorldContext | null;
-  docs: Doc[];
 };
 
 const buildExcerpt = (body: string, limit = 360) => {
@@ -81,8 +80,7 @@ export default function useVaultAiChat({
   activeCampaignId,
   activeCampaign,
   currentDoc,
-  worldbuildContext,
-  docs
+  worldbuildContext
 }: UseVaultAiChatInput) {
   const [aiProvider, setAiProvider] = useState("none");
   const [aiMessages, setAiMessages] = useState<AiMessage[]>([]);

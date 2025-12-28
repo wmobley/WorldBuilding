@@ -23,6 +23,12 @@ import {
 import type { Doc } from "../../vault/types";
 
 type TagFilter = { type: string; value: string } | null;
+type BacklinkEntry = {
+  source: Doc;
+  heading: string | null;
+  subheading: string | null;
+  line: string;
+};
 
 type UseVaultDataInput = {
   activeCampaignId: string | null;
@@ -173,11 +179,11 @@ export default function useVaultData({
     { tables: ["npc_profiles"] }
   );
 
-  const backlinks = useSupabaseQuery(
+  const backlinks: BacklinkEntry[] = useSupabaseQuery(
     async () => {
-      if (!currentDoc) return [] as { source: Doc; snippet: string }[];
+      if (!currentDoc) return [] as BacklinkEntry[];
       const results = await listBacklinks(currentDoc.id);
-      return results
+      const entries = results
         .map((result) => {
           const source = result?.source;
           if (!source) return null;
@@ -185,16 +191,18 @@ export default function useVaultData({
           const context = extractBacklinkContext(source.body, marker);
           return { source, ...context };
         })
-        .filter(Boolean)
-        .filter((entry) => !isIndexDoc(entry.source)) as {
-        source: Doc;
-        heading: string | null;
-        subheading: string | null;
-        line: string;
-      }[];
+        .filter(
+          (entry): entry is {
+            source: Doc;
+            heading: string | null;
+            subheading: string | null;
+            line: string;
+          } => Boolean(entry && !isIndexDoc(entry.source))
+        );
+      return entries;
     },
     [currentDoc?.id, currentDoc?.title],
-    [],
+    [] as BacklinkEntry[],
     { tables: ["edges", "docs"] }
   );
 

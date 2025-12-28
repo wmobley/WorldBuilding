@@ -1,7 +1,6 @@
 import { createId } from "../lib/id";
 import { supabase } from "../lib/supabase";
 import {
-  createDoc,
   createFolder,
   getSetting,
   listDocs,

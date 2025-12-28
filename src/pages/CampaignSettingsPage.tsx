@@ -623,7 +623,7 @@ export default function CampaignSettingsPage() {
       <CampaignModal
         isOpen={campaignModalOpen}
         onClose={() => setCampaignModalOpen(false)}
-        onSave={(name, synopsis) => {
+        onCreate={(name: string, synopsis: string) => {
           createCampaign(name, synopsis)
             .then((created) => {
               setCampaignModalOpen(false);

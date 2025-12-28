@@ -201,6 +201,7 @@ export default function ReferencePage() {
     const updates: Array<Promise<unknown>> = [];
     nextColumns.forEach((columnCards, colIndex) => {
       columnCards.forEach((card, index) => {
+        if (typeof card.id !== "number") return;
         if (card.column !== colIndex || card.position !== index) {
           updates.push(
             updateDmScreenCard(card.id, { column: colIndex, position: index })
@@ -581,9 +582,12 @@ export default function ReferencePage() {
                     )}
                     {column.cards.map((card, index) => (
                       <div
-                        key={card.id}
+                        key={card.id ?? `${card.entryId}-${index}`}
                         draggable
-                        onDragStart={() => setDraggedCardId(card.id)}
+                        onDragStart={() => {
+                          if (typeof card.id !== "number") return;
+                          setDraggedCardId(card.id);
+                        }}
                         onDragEnd={() => setDraggedCardId(null)}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={async () => {
@@ -596,7 +600,10 @@ export default function ReferencePage() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-display text-base text-ink">{card.title}</div>
                           <button
-                            onClick={() => deleteDmScreenCard(card.id)}
+                            onClick={() => {
+                              if (typeof card.id !== "number") return;
+                              deleteDmScreenCard(card.id);
+                            }}
                             className="text-[11px] font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
                           >
                             Remove

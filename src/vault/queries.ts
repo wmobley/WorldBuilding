@@ -247,9 +247,9 @@ export async function renameFolder(folderId: string, name: string) {
   }
 }
 
-async function collectFolderTreeIds(folderId: string) {
+async function collectFolderTreeIds(folderId: string): Promise<string[]> {
   const children = await listFoldersByParent(folderId);
-  const childIds = await Promise.all(
+  const childIds: string[][] = await Promise.all(
     children.map((child) => collectFolderTreeIds(child.id))
   );
   return [folderId, ...childIds.flat()];
@@ -388,7 +388,6 @@ export async function moveDoc(
 
 export async function setDocSortOrder(
   folderId: string | null,
-  campaignId: string,
   orderedDocIds: string[]
 ) {
   const updates = orderedDocIds.map((id, index) =>
@@ -501,7 +500,7 @@ export async function listBacklinks(docId: string) {
   logSupabaseError("listBacklinks:edges", error);
   const edges = (edgeRows ?? []).map(mapEdge);
   const sourceDocs = await listDocsByIds(edges.map((edge) => edge.fromDocId));
-  return edges
+  const entries = edges
     .map((edge) => {
       const source = sourceDocs.find((doc) => doc?.id === edge.fromDocId);
       if (!source) return null;
@@ -510,8 +509,11 @@ export async function listBacklinks(docId: string) {
         source
       };
     })
-    .filter(Boolean)
-    .filter((entry) => !entry.source.deletedAt);
+    .filter(
+      (entry): entry is { edge: typeof edges[number]; source: Doc } =>
+        Boolean(entry && !entry.source.deletedAt)
+    );
+  return entries;
 }
 
 export async function listEdgesFromDoc(docId: string) {

@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import {
   createDoc,
-  getDocById,
   getDocByTitle,
   updateAllFolderIndexes
 } from "../../vault/queries";

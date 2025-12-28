@@ -394,10 +394,14 @@ function stripTags(value: string) {
 }
 
 function htmlToMarkdown(html: string) {
-  const replacements: Array<[RegExp, string]> = [
+  type Replacement = [RegExp, string | ((match: string, ...args: string[]) => string)];
+  const replacements: Replacement[] = [
     [/<\s*br\s*\/?>/gi, "\n"],
     [/<\s*\/p\s*>/gi, "\n\n"],
-    [/<\s*h([1-6])[^>]*>/gi, (_, level) => `${"#".repeat(Number(level))} `],
+    [
+      /<\s*h([1-6])[^>]*>/gi,
+      (_match: string, level: string) => `${"#".repeat(Number(level))} `
+    ],
     [/<\s*\/h[1-6]\s*>/gi, "\n\n"],
     [/<\s*li[^>]*>/gi, "- "],
     [/<\s*\/li\s*>/gi, "\n"],
@@ -409,7 +413,11 @@ function htmlToMarkdown(html: string) {
 
   let text = html;
   replacements.forEach(([regex, value]) => {
-    text = text.replace(regex, value);
+    if (typeof value === "string") {
+      text = text.replace(regex, value);
+      return;
+    }
+    text = text.replace(regex, (...args) => value(args[0], ...args.slice(1)));
   });
 
   text = text.replace(/<[^>]+>/g, "");

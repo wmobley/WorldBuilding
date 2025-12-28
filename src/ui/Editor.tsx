@@ -127,6 +127,7 @@ const Editor = forwardRef<
                 : entry.doc.title,
             type: "link",
             apply: (view, completion, from, to) => {
+              void completion;
               const target =
                 entry.doc.kind === "reference"
                   ? `ref:${entry.doc.slug ?? "reference"}:${entry.doc.id}`

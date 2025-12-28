@@ -127,7 +127,11 @@ async function seedBestiaryIfNeeded() {
 
 async function seedToolReferencesIfNeeded() {
   const seeded = await getSetting("toolReferencesSeeded");
-  const references = toolRefs.references ?? {};
+  const references =
+    (toolRefs.references ?? {}) as Record<
+      string,
+      Array<{ name?: string; source?: string; rawJson?: string }>
+    >;
   const slugs = Object.keys(references);
   if (seeded === "true") {
     const existing = await countReferencesBySlugs(slugs);

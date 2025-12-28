@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { createId } from "../lib/id";
 import { createWebConnectRoom } from "../lib/webConnect";
+import type { WebConnectPeer } from "../lib/webConnect";
 import { rollDiceExpression } from "../lib/diceRoller";
 import { useDebouncedCallback } from "../lib/useDebouncedCallback";
 import { getSessionNotes, getSetting, saveSessionNotes } from "../vault/queries";
@@ -50,9 +51,32 @@ type NavigationNotice = {
   timestamp: number;
 };
 
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 const getSpeechRecognition = () => {
   const win = window as typeof window & {
-    webkitSpeechRecognition?: typeof SpeechRecognition;
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
   };
   return win.SpeechRecognition ?? win.webkitSpeechRecognition;
 };
@@ -126,7 +150,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const roomRef = useRef<ReturnType<typeof createWebConnectRoom> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const localPeerIdRef = useRef<string | null>(null);
   const notesHydratedRef = useRef(false);
   const mediaRequestIdRef = useRef(0);
@@ -252,7 +276,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
         if (!result.isFinal) continue;
@@ -461,7 +485,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (rosterPayload.roomName && rosterPayload.roomName !== payload.roomName) {
           setRoomName(rosterPayload.roomName);
         }
-        peers.forEach((peer) => {
+        peers.forEach((peer: WebConnectPeer) => {
           if (peer.peerId === localPeerIdRef.current) return;
           addParticipant({
             id: peer.peerId,

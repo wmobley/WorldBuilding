@@ -376,7 +376,9 @@ export default function WorldbuildPanel({
                 Run a worldbuild action to assemble a prompt package.
               </p>
             ) : (
-              worldbuildResults.map((result) => (
+              worldbuildResults.map((result) => {
+                const drafts = result.drafts ?? [];
+                return (
                 <div
                   key={result.id}
                   className="rounded-2xl border border-page-edge bg-parchment/70 p-3 space-y-2"
@@ -423,9 +425,9 @@ export default function WorldbuildPanel({
                               >
                                 Insert into Page
                               </button>
-                              {result.drafts && result.drafts.length > 0 && (
+                              {drafts.length > 0 && (
                                 <button
-                                  onClick={() => onCreateDraftDocs(result.drafts)}
+                                  onClick={() => onCreateDraftDocs(drafts)}
                                   className="text-ink-soft hover:text-ember"
                                 >
                                   Create Draft Docs...
@@ -438,7 +440,8 @@ export default function WorldbuildPanel({
                     );
                   })()}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

@@ -130,7 +130,7 @@ export function summarizeMonster(rawJson?: string): MonsterSummary | null {
   }
 }
 
-export function renderEntries(entries: unknown) {
+export function renderEntries(entries: unknown): string {
   if (!entries) return "";
   if (typeof entries === "string") return stripTags(entries);
   if (Array.isArray(entries)) {

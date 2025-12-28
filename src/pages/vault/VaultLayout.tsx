@@ -9,7 +9,13 @@ import type { Campaign, Doc, Folder, Tag } from "../../vault/types";
 import type { WorldbuildAnchor, WorldbuildDraft, WorldbuildResult } from "../../ai/worldbuild";
 import type { TemplateOption } from "../../lib/templates";
 
-type LinkOption = Doc & { kind?: "doc" | "reference" | "folder"; slug?: string };
+type LinkOption = {
+  id: string;
+  title: string;
+  body: string;
+  kind?: "doc" | "reference" | "folder";
+  slug?: string;
+};
 
 export default function VaultLayout({
   isTrashView,
@@ -180,20 +186,31 @@ export default function VaultLayout({
   worldbuildTone: string;
   onWorldbuildToneChange: (tone: string) => void;
   worldbuildResults: WorldbuildResult[];
-  worldbuildLoading: Record<string, boolean>;
+  worldbuildLoading: {
+    plotLines: boolean;
+    cityBuilder: boolean;
+    adventureHooks: boolean;
+    highLevelPlot: boolean;
+    placeBuilder: boolean;
+    regionBuilder: boolean;
+    countryBuilder: boolean;
+    townBuilder: boolean;
+    villageBuilder: boolean;
+    fortBuilder: boolean;
+  };
   onGeneratePlotLines: () => void;
-  onBuildCity: (anchorId: string) => void;
+  onBuildCity: () => void;
   onGenerateHooks: () => void;
   onGenerateHighLevelPlot: () => void;
-  onBuildPlace: (anchorId: string) => void;
-  onBuildRegion: (anchorId: string) => void;
-  onBuildCountry: (anchorId: string) => void;
-  onBuildTown: (anchorId: string) => void;
-  onBuildVillage: (anchorId: string) => void;
-  onBuildFort: (anchorId: string) => void;
+  onBuildPlace: () => void;
+  onBuildRegion: () => void;
+  onBuildCountry: () => void;
+  onBuildTown: () => void;
+  onBuildVillage: () => void;
+  onBuildFort: () => void;
   onInsertWorldbuildContent: (entry: string) => void;
   onCreateDraftDocs: (drafts: WorldbuildDraft[]) => void;
-  onSendWorldbuild: () => void;
+  onSendWorldbuild: (resultId: string) => void;
   aiProvider: string;
   aiMessages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: number }>;
   aiInput: string;
