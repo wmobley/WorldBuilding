@@ -35,6 +35,7 @@ import type { Doc } from "../vault/types";
 import { useAuth } from "../auth/AuthGate";
 import type { SelectionPrompt } from "./vault/VaultSelectionModal";
 import { applyTemplateTitle, parseLinkedDocId, suggestTitleFromText } from "./vault/utils";
+import { buildPrepHelpers } from "../prep/helpers";
 import useVaultAiChat from "./vault/useVaultAiChat";
 import useVaultWorldbuild from "./vault/useVaultWorldbuild";
 import useVaultLinkHandlers from "./vault/useVaultLinkHandlers";
@@ -117,6 +118,15 @@ export default function VaultPage() {
     if (!creature) return null;
     return { name: creature.name, rawJson: creature.rawJson };
   }, [npcProfile?.creatureId, bestiaryReferences]);
+  const prepHelpers = useMemo(
+    () =>
+      buildPrepHelpers({
+        context: worldbuildContext ?? null,
+        folders: folders ?? [],
+        bestiaryReferences: bestiaryReferences ?? []
+      }),
+    [worldbuildContext, folders, bestiaryReferences]
+  );
   const isPeopleDoc = useMemo(() => {
     if (!currentDoc?.folderId) return false;
     const folder = (folders ?? []).find((entry) => entry.id === currentDoc.folderId);
@@ -589,6 +599,7 @@ export default function VaultPage() {
         onClearAiChat={handleClearAiChat}
         chatLinkDocs={(docs ?? []).filter((doc) => !isIndexDoc(doc))}
         chatTagOptions={chatTagOptions ?? []}
+        prepHelpers={prepHelpers}
       />
       <VaultModals
         quickOpenDocs={quickOpenDocs}

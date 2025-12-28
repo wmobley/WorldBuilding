@@ -298,14 +298,16 @@ export default function Sidebar({
                       dropTarget?.position === "below" ? "below" : "above"
                     );
                   }}
-                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition ${
-                    doc.id === activeDocId
-                      ? "bg-parchment/80 text-ink"
-                      : "text-ink-soft hover:text-ink"
-                  } ${dropTarget?.type === "doc" && dropTarget.id === doc.id ? "drag-sigil" : ""} ${
-                    dropTarget?.type === "doc" &&
-                    dropTarget.id === doc.id &&
-                    dropTarget.position === "above"
+                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition ${
+                  doc.id === activeDocId
+                    ? "bg-parchment/80 text-ink"
+                    : "text-ink-soft hover:text-ink"
+                } ${
+                  draggingDocId === doc.id ? "drag-sigil--active" : ""
+                } ${dropTarget?.type === "doc" && dropTarget.id === doc.id ? "drag-sigil" : ""} ${
+                  dropTarget?.type === "doc" &&
+                  dropTarget.id === doc.id &&
+                  dropTarget.position === "above"
                       ? "drag-sigil--edge"
                       : ""
                   } ${
@@ -314,12 +316,13 @@ export default function Sidebar({
                     dropTarget.position === "below"
                       ? "drag-sigil--edge-bottom"
                       : ""
-                  } wb-tooltip`}
-                  data-tooltip={`Open ${doc.title}`}
-                >
-                  {doc.title}
-                </button>
-              ))}
+                } wb-tooltip`}
+                data-tooltip={`Open ${doc.title}`}
+                aria-grabbed={draggingDocId === doc.id}
+              >
+                {doc.title}
+              </button>
+            ))}
             </div>
             {childFolders.length > 0 && (
               <div className="space-y-4">
@@ -403,6 +406,11 @@ export default function Sidebar({
         )}
         <div id="sidebar-folders" className="space-y-4">
           {(folderMap.get(null) ?? []).map((folder) => renderFolder(folder, 0))}
+          {(folderMap.get(null) ?? []).length === 0 && (
+            <p className="marginal-note">
+              No chapters yet. Create one to start organizing your world.
+            </p>
+          )}
         </div>
         <div
           id="sidebar-loose"
@@ -459,6 +467,8 @@ export default function Sidebar({
                   doc.id === activeDocId
                     ? "bg-parchment/80 text-ink"
                     : "text-ink-soft hover:text-ink"
+                } ${
+                  draggingDocId === doc.id ? "drag-sigil--active" : ""
                 } ${dropTarget?.type === "doc" && dropTarget.id === doc.id ? "drag-sigil" : ""} ${
                   dropTarget?.type === "doc" &&
                   dropTarget.id === doc.id &&
@@ -473,10 +483,14 @@ export default function Sidebar({
                     : ""
                 } wb-tooltip`}
                 data-tooltip={`Open ${doc.title}`}
+                aria-grabbed={draggingDocId === doc.id}
               >
                 {doc.title}
               </button>
             ))}
+            {orderedDocsForFolder(null).length === 0 && (
+              <p className="marginal-note">Loose pages will appear here.</p>
+            )}
           </div>
         </div>
         <div id="sidebar-trash" className="pt-2">

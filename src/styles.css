@@ -16,6 +16,7 @@
   --page-edge: 30 22% 78%;
   --page-shadow: 30 20% 40%;
   --accent-map: 200 30% 38%;
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 [data-theme="dark"] {
@@ -56,7 +57,15 @@ body {
 
 .page-panel {
   @apply rounded-2xl border border-page-edge shadow-page bg-parchment/90 backdrop-blur;
-  transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+  transition: border-color 200ms var(--ease-soft),
+    background-color 200ms var(--ease-soft),
+    box-shadow 240ms var(--ease-soft),
+    transform 240ms var(--ease-soft);
+}
+
+.page-panel:focus-within {
+  box-shadow: 0 18px 38px -24px hsla(var(--page-shadow), 0.7),
+    inset 0 0 0 1px hsla(var(--brass), 0.25);
 }
 
 .inked-border {
@@ -217,6 +226,10 @@ body {
   transition: grid-template-columns 180ms ease;
 }
 
+#app-layout[data-resizing="true"] {
+  cursor: col-resize;
+}
+
 .pane-divider {
   width: var(--pane-divider-size);
   height: 100%;
@@ -231,7 +244,7 @@ body {
   );
   border: none;
   padding: 0;
-  transition: background 160ms ease;
+  transition: background 160ms ease, box-shadow 160ms ease;
 }
 
 .pane-divider:hover,
@@ -245,11 +258,26 @@ body {
     transparent 100%
   );
   outline: none;
+  box-shadow: inset 0 0 0 1px hsla(var(--brass), 0.15);
+}
+
+.pane-divider:active {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsla(var(--ember), 0.2) 40%,
+    hsla(var(--ember), 0.45) 50%,
+    hsla(var(--ember), 0.2) 60%,
+    transparent 100%
+  );
 }
 
 .drag-sigil {
   background: hsla(var(--brass), 0.08);
   border-color: hsla(var(--brass), 0.4);
+  box-shadow: inset 0 0 0 1px hsla(var(--brass), 0.2);
+  transition: background 160ms var(--ease-soft), border-color 160ms var(--ease-soft),
+    box-shadow 160ms var(--ease-soft);
 }
 
 .drag-sigil--edge {
@@ -258,6 +286,11 @@ body {
 
 .drag-sigil--edge-bottom {
   border-bottom: 1px solid hsla(var(--brass), 0.6);
+}
+
+.drag-sigil--active {
+  opacity: 0.65;
+  transform: scale(0.985);
 }
 
 .session-frame {
@@ -567,7 +600,7 @@ body {
 }
 
 .session-reveal {
-  animation: session-rise 420ms ease;
+  animation: session-rise 420ms var(--ease-soft);
 }
 
 @keyframes session-rise {
@@ -578,5 +611,15 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
 }

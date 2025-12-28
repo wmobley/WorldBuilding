@@ -54,6 +54,7 @@ export default function ReferencePage() {
   const [npcFromBestiaryId, setNpcFromBestiaryId] = useState<string | null>(null);
   const [dmQuery, setDmQuery] = useState("");
   const [draggedCardId, setDraggedCardId] = useState<number | null>(null);
+  const [dmDropTarget, setDmDropTarget] = useState<number | null>(null);
   const [crInputs, setCrInputs] = useState({
     hp: 100,
     ac: 13,
@@ -527,6 +528,9 @@ export default function ReferencePage() {
                     id="reference-list"
                     className="mt-4 space-y-2 max-h-[60vh] overflow-auto pr-1"
                   >
+                    {filtered.length === 0 && (
+                      <p className="marginal-note">No matches. Try a different search.</p>
+                    )}
                     {filtered.map((entry) => (
                       <button
                         key={entry.id}
@@ -566,12 +570,23 @@ export default function ReferencePage() {
                 {dmColumns.map((column) => (
                   <div
                     key={`dm-col-${column.index}`}
-                    className="rounded-3xl border border-page-edge bg-parchment/70 p-4 space-y-3"
-                    onDragOver={(event) => event.preventDefault()}
+                    className={`rounded-3xl border border-page-edge bg-parchment/70 p-4 space-y-3 ${
+                      dmDropTarget === column.index ? "drag-sigil" : ""
+                    }`}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (draggedCardId !== null) {
+                        setDmDropTarget(column.index);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dmDropTarget === column.index) setDmDropTarget(null);
+                    }}
                     onDrop={async () => {
                       if (draggedCardId === null) return;
                       await handleMoveDmCard(draggedCardId, column.index, column.cards.length);
                       setDraggedCardId(null);
+                      setDmDropTarget(null);
                     }}
                   >
                     <div className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
@@ -588,14 +603,22 @@ export default function ReferencePage() {
                           if (typeof card.id !== "number") return;
                           setDraggedCardId(card.id);
                         }}
-                        onDragEnd={() => setDraggedCardId(null)}
+                        onDragEnd={() => {
+                          setDraggedCardId(null);
+                          setDmDropTarget(null);
+                        }}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={async () => {
                           if (draggedCardId === null) return;
                           await handleMoveDmCard(draggedCardId, column.index, index);
                           setDraggedCardId(null);
+                          setDmDropTarget(null);
                         }}
-                        className="rounded-2xl border border-page-edge bg-parchment/80 p-3 space-y-2 cursor-grab"
+                        className={`rounded-2xl border border-page-edge bg-parchment/80 p-3 space-y-2 cursor-grab ${
+                          typeof card.id === "number" && draggedCardId === card.id
+                            ? "drag-sigil--active"
+                            : ""
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-display text-base text-ink">{card.title}</div>

@@ -98,6 +98,20 @@ export default function AppShell({
     };
   }, [dividerSize, hasMarginalia, isResizing, marginaliaWidth, sidebarWidth]);
 
+  useEffect(() => {
+    if (!isResizing) {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      return;
+    }
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
+
   const layoutStyle = useMemo(
     () =>
       ({
@@ -127,7 +141,7 @@ export default function AppShell({
         data-has-marginalia={hasMarginalia}
         data-resizing={isResizing ? "true" : "false"}
         style={layoutStyle}
-        className="grid grid-cols-1 gap-6 px-6 py-6 lg:gap-0"
+        className="grid w-full max-w-[1600px] grid-cols-1 gap-6 px-6 py-6 lg:gap-0 mx-auto"
       >
         <aside id="app-sidebar" className="space-y-4">
           {sidebar}

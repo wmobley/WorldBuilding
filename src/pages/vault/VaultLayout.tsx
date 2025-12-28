@@ -8,6 +8,7 @@ import TrashPanel from "../../ui/TrashPanel";
 import type { Campaign, Doc, Folder, Tag } from "../../vault/types";
 import type { WorldbuildAnchor, WorldbuildDraft, WorldbuildResult } from "../../ai/worldbuild";
 import type { TemplateOption } from "../../lib/templates";
+import type { PrepHelpers } from "../../prep/helpers";
 
 type LinkOption = {
   id: string;
@@ -111,7 +112,8 @@ export default function VaultLayout({
   onSendAiChat,
   onClearAiChat,
   chatLinkDocs,
-  chatTagOptions
+  chatTagOptions,
+  prepHelpers
 }: {
   isTrashView: boolean;
   docs: Doc[];
@@ -221,6 +223,7 @@ export default function VaultLayout({
   onClearAiChat: () => void;
   chatLinkDocs: Doc[];
   chatTagOptions: Array<{ type: string; value: string }>;
+  prepHelpers: PrepHelpers | null;
 }) {
   return (
     <AppShell
@@ -347,6 +350,7 @@ export default function VaultLayout({
             onClearAiChat={onClearAiChat}
             chatLinkDocs={chatLinkDocs}
             chatTagOptions={chatTagOptions}
+            prepHelpers={prepHelpers}
           />
         )
       }
