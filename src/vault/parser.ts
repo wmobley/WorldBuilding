@@ -1,3 +1,5 @@
+import { parseTagsFromMarkdown } from "../domain/tags/parseTags";
+
 export type ParsedLink = {
   targetTitle: string;
   linkText: string;
@@ -10,7 +12,6 @@ export type ParsedTag = {
 };
 
 const linkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-const tagRegex = /@([a-zA-Z]+):([\w-]+)/g;
 
 export function parseLinks(markdown: string): ParsedLink[] {
   const links: ParsedLink[] = [];
@@ -29,13 +30,8 @@ export function parseLinks(markdown: string): ParsedLink[] {
 }
 
 export function parseTags(markdown: string): ParsedTag[] {
-  const tags: ParsedTag[] = [];
-  let match: RegExpExecArray | null = null;
-  while ((match = tagRegex.exec(markdown))) {
-    const type = match[1].toLowerCase();
-    const value = match[2].toLowerCase();
-    if (!type || !value) continue;
-    tags.push({ type, value });
-  }
-  return tags;
+  return parseTagsFromMarkdown(markdown).map((tag) => ({
+    type: tag.namespace,
+    value: tag.value
+  }));
 }

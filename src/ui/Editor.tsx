@@ -9,6 +9,7 @@ import {
 } from "@codemirror/autocomplete";
 import { minimalSetup } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { tagVocabulary } from "../domain/tags/vocabulary";
 
 export type EditorHandle = {
   wrapSelection: (prefix: string, suffix: string) => void;
@@ -32,19 +33,21 @@ const Editor = forwardRef<
     value: string;
     onChange: (value: string) => void;
     linkOptions: LinkOption[];
+    tagOptions: Array<{ type: string; value: string }>;
     onPreviewDoc: (docId: string) => void;
     onCursorLink: (target: string | null) => void;
     onMetaClickSelection?: (selection: { text: string; from: number; to: number }) => void;
   }
 >(
   (
-    { value, onChange, linkOptions, onPreviewDoc, onCursorLink, onMetaClickSelection },
+    { value, onChange, linkOptions, tagOptions, onPreviewDoc, onCursorLink, onMetaClickSelection },
     ref
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
     const linkOptionsRef = useRef(linkOptions);
+    const tagOptionsRef = useRef(tagOptions);
     const onPreviewRef = useRef(onPreviewDoc);
     const onCursorLinkRef = useRef(onCursorLink);
     const onMetaClickRef = useRef(onMetaClickSelection);
@@ -56,6 +59,10 @@ const Editor = forwardRef<
     useEffect(() => {
       linkOptionsRef.current = linkOptions;
     }, [linkOptions]);
+
+    useEffect(() => {
+      tagOptionsRef.current = tagOptions;
+    }, [tagOptions]);
 
     useEffect(() => {
       onPreviewRef.current = onPreviewDoc;
@@ -157,6 +164,130 @@ const Editor = forwardRef<
         };
       };
 
+      const tagCompletionSource: CompletionSource = (context) => {
+        console.debug("[WB] tagCompletionSource", {
+          pos: context.pos,
+          explicit: context.explicit
+        });
+        const match = context.matchBefore(/[@#][a-zA-Z0-9_-]*:?[\w-]*$/);
+        console.debug("[WB] tagCompletionSource match", match?.text ?? null);
+        if (!match) return null;
+        if (match.from === match.to && !context.explicit) return null;
+
+        const text = match.text;
+        const prefix = text[0] as "@" | "#";
+        const rest = text.slice(1);
+        const hasColon = rest.includes(":");
+        const [namespacePart, valuePart = ""] = rest.split(":", 2);
+        const namespaceQuery = namespacePart.toLowerCase();
+        const valueQuery = valuePart.toLowerCase();
+
+        const vocabByNamespace = new Map(
+          tagVocabulary.map((spec) => [spec.namespace, spec])
+        );
+
+        const tagValueMap = new Map<string, Set<string>>();
+        for (const tag of tagOptionsRef.current) {
+          const key = tag.type.toLowerCase();
+          const values = tagValueMap.get(key) ?? new Set<string>();
+          values.add(tag.value.toLowerCase());
+          tagValueMap.set(key, values);
+        }
+
+        if (!hasColon) {
+          const namespaces = new Set<string>([...vocabByNamespace.keys()]);
+          for (const key of tagValueMap.keys()) namespaces.add(key);
+          const options = Array.from(namespaces)
+            .filter((name) => name.startsWith(namespaceQuery))
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, 50)
+            .map((name) => {
+              const spec = vocabByNamespace.get(name);
+              return {
+                label: name,
+                detail: spec?.description ?? "Existing tag namespace",
+                type: "keyword",
+                apply: `${prefix}${name}:`
+              } satisfies Completion;
+            });
+          if (options.length === 0) {
+            return {
+              from: match.from,
+              options: [
+                {
+                  label: "<namespace>",
+                  detail: "Type to add a new namespace",
+                  type: "text",
+                  className: "tag-placeholder",
+                  apply: () => undefined
+                }
+              ],
+              validFor: /[@#a-zA-Z0-9_-]*$/,
+              filter: false
+            };
+          }
+          console.debug("[WB] tagCompletionSource namespaces", {
+            namespaceQuery,
+            count: options.length
+          });
+          return {
+            from: match.from,
+            options,
+            validFor: /[@#a-zA-Z0-9_-]*$/,
+            filter: false
+          };
+        }
+
+        if (!namespaceQuery) return null;
+        const spec = vocabByNamespace.get(namespaceQuery);
+        const values = new Set<string>();
+        if (spec?.values) spec.values.forEach((value) => values.add(value));
+        const seenValues = tagValueMap.get(namespaceQuery);
+        if (seenValues) seenValues.forEach((value) => values.add(value));
+
+        const options = Array.from(values)
+          .filter((value) => value.startsWith(valueQuery))
+          .sort((a, b) => a.localeCompare(b))
+          .slice(0, 50)
+          .map(
+            (value) =>
+              ({
+                label: value,
+                detail: spec?.kind ? `${spec.kind} namespace` : "Existing tag value",
+                type: "text",
+                apply: `${prefix}${namespaceQuery}:${value}`
+              }) satisfies Completion
+          );
+
+        if (options.length === 0) {
+          return {
+            from: match.from,
+            options: [
+              {
+                label: "<value>",
+                detail: "Type to add a new value",
+                type: "text",
+                className: "tag-placeholder",
+                apply: () => undefined
+              }
+            ],
+            validFor: /[@#a-zA-Z0-9_:-]*$/,
+            filter: false
+          };
+        }
+        console.debug("[WB] tagCompletionSource values", {
+          namespaceQuery,
+          valueQuery,
+          count: options.length
+        });
+        return {
+          from: match.from,
+          options,
+          validFor: /[@#a-zA-Z0-9_:-]*$/,
+          filter: false
+        };
+      };
+
       const extractLinkTargetAtCursor = (state: EditorState) => {
         const pos = state.selection.main.head;
         const windowStart = Math.max(0, pos - 300);
@@ -187,7 +318,29 @@ const Editor = forwardRef<
         extensions: [
           minimalSetup,
           markdown(),
-          autocompletion({ override: [linkCompletionSource], activateOnTyping: true }),
+          autocompletion({
+            override: [linkCompletionSource, tagCompletionSource],
+            activateOnTyping: true
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            const isInput = update.transactions.some((tr) => tr.isUserEvent("input"));
+            if (!isInput) return;
+            let shouldTrigger = false;
+            update.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
+              if (shouldTrigger) return;
+              const text = inserted.toString();
+              if (text.includes("@") || text.includes("#")) {
+                shouldTrigger = true;
+              }
+            });
+            if (shouldTrigger) {
+              console.debug("[WB] tag completion trigger", {
+                text: update.changes.toString()
+              });
+              startCompletion(update.view);
+            }
+          }),
           keymap.of([
             {
               key: "Mod-k",
