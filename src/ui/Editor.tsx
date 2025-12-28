@@ -34,14 +34,20 @@ const Editor = forwardRef<
     linkOptions: LinkOption[];
     onPreviewDoc: (docId: string) => void;
     onCursorLink: (target: string | null) => void;
+    onMetaClickSelection?: (selection: { text: string; from: number; to: number }) => void;
   }
->(({ value, onChange, linkOptions, onPreviewDoc, onCursorLink }, ref) => {
+>(
+  (
+    { value, onChange, linkOptions, onPreviewDoc, onCursorLink, onMetaClickSelection },
+    ref
+  ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
     const linkOptionsRef = useRef(linkOptions);
     const onPreviewRef = useRef(onPreviewDoc);
     const onCursorLinkRef = useRef(onCursorLink);
+    const onMetaClickRef = useRef(onMetaClickSelection);
 
     useEffect(() => {
       onChangeRef.current = onChange;
@@ -58,6 +64,10 @@ const Editor = forwardRef<
     useEffect(() => {
       onCursorLinkRef.current = onCursorLink;
     }, [onCursorLink]);
+
+    useEffect(() => {
+      onMetaClickRef.current = onMetaClickSelection;
+    }, [onMetaClickSelection]);
 
     useEffect(() => {
       if (!containerRef.current) return;
@@ -186,6 +196,62 @@ const Editor = forwardRef<
               }
             }
           ]),
+          EditorView.domEventHandlers({
+            mousedown: (event, view) => {
+              const mouseEvent = event as MouseEvent;
+              if (!mouseEvent.metaKey && !mouseEvent.ctrlKey) return false;
+              if (!onMetaClickRef.current) return false;
+              const coords = { x: mouseEvent.clientX, y: mouseEvent.clientY };
+              const pos = view.posAtCoords(coords);
+              if (pos == null) return false;
+              const selection = view.state.selection.main;
+              let from = selection.from;
+              let to = selection.to;
+              if (from === to) {
+                const line = view.state.doc.lineAt(pos);
+                const offset = pos - line.from;
+                const text = line.text;
+                const expandBetween = (open: string, close: string) => {
+                  const before = text.lastIndexOf(open, offset);
+                  const after =
+                    offset <= text.length ? text.indexOf(close, offset) : -1;
+                  if (before === -1 || after === -1 || before >= after) {
+                    return null;
+                  }
+                  return {
+                    start: before + open.length,
+                    end: after
+                  };
+                };
+                const boldSpan = expandBetween("**", "**");
+                const italicSpan = boldSpan ? null : expandBetween("*", "*");
+                const span = boldSpan ?? italicSpan;
+                if (span && span.start !== span.end) {
+                  from = line.from + span.start;
+                  to = line.from + span.end;
+                } else {
+                  const isWordChar = (char: string) =>
+                    /[A-Za-z0-9'_-]/.test(char);
+                  let start = offset;
+                  let end = offset;
+                  while (start > 0 && isWordChar(text[start - 1])) start -= 1;
+                  while (end < text.length && isWordChar(text[end])) end += 1;
+                  if (start === end) return false;
+                  from = line.from + start;
+                  to = line.from + end;
+                }
+              }
+              const selectedText = view.state.doc.sliceString(from, to);
+              if (!selectedText.trim()) return false;
+              mouseEvent.preventDefault();
+              onMetaClickRef.current({
+                text: selectedText,
+                from,
+                to
+              });
+              return true;
+            }
+          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString());

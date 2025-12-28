@@ -34,6 +34,7 @@ export default function PagePanel({
   onDeleteDoc,
   onOpenFolder,
   onOpenHome,
+  onMetaClickSelection,
   onShareSnippet,
   canShareSnippet,
   npcCreatures,
@@ -59,6 +60,7 @@ export default function PagePanel({
   onDeleteDoc: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenHome: () => void;
+  onMetaClickSelection?: (selection: { text: string; from: number; to: number }) => void;
   onShareSnippet?: (snippet: {
     text: string;
     startOffset: number;
@@ -358,6 +360,7 @@ export default function PagePanel({
             linkOptions={linkOptions}
             onPreviewDoc={onPreviewDoc}
             onCursorLink={onCursorLink}
+            onMetaClickSelection={onMetaClickSelection}
           />
         ) : (
           <div id="page-preview">
