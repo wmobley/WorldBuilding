@@ -130,7 +130,7 @@ export default function HeaderBar({
               <div className="absolute left-0 top-full mt-2 w-64 rounded-2xl border border-page-edge bg-parchment/95 shadow-page p-2 z-10">
                 <button
                   onClick={() => {
-                    navigate(`/session/${encodeURIComponent(sessionRoomId)}`);
+                    navigate(`/session?name=${encodeURIComponent(sessionRoomId)}`);
                     setOpenMenu(null);
                   }}
                   className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Modal from "../ui/components/Modal";
 import SessionVideo from "../session/SessionVideo";
 import { useSession } from "../session/SessionContext";
-import { getDocById, saveDocContent } from "../vault/queries";
+import { getDocById, getSetting, saveDocContent } from "../vault/queries";
 import type { Doc } from "../vault/types";
+import { createId } from "../lib/id";
+import { sendPromptToProvider, type AiProvider } from "../ai/client";
 
 const formatTimestamp = (timestamp: number) => {
   const date = new Date(timestamp);
@@ -24,6 +26,7 @@ const buildSummaryBlock = (summary: string) => {
 export default function SessionPage() {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const derivedRoomName = useMemo(
     () => (roomId ? decodeURIComponent(roomId) : "Session"),
     [roomId]
@@ -65,11 +68,19 @@ export default function SessionPage() {
   const [summaryDraft, setSummaryDraft] = useState("");
   const [lastDoc, setLastDoc] = useState<Doc | null>(null);
   const [entryError, setEntryError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiNotesLoading, setAiNotesLoading] = useState(false);
+  const [lobbyRoomInput, setLobbyRoomInput] = useState("");
+  const [newRoomId, setNewRoomId] = useState(() => createId().slice(0, 8));
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   useEffect(() => {
     if (joined) return;
-    setRoomName(derivedRoomName);
-  }, [derivedRoomName, joined, setRoomName]);
+    const params = new URLSearchParams(location.search);
+    const provided = params.get("name");
+    setRoomName(provided ? decodeURIComponent(provided) : derivedRoomName);
+  }, [derivedRoomName, joined, location.search, setRoomName]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -139,16 +150,247 @@ export default function SessionPage() {
     navigate(`/doc/${lastDoc.id}`);
   };
 
+  const parseRoomInput = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    try {
+      const parsed = new URL(trimmed);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const sessionIndex = parts.indexOf("session");
+      if (sessionIndex >= 0 && parts[sessionIndex + 1]) {
+        return decodeURIComponent(parts[sessionIndex + 1]);
+      }
+    } catch (error) {
+      // Not a URL; fall back to raw text.
+    }
+    return trimmed;
+  };
+
+  const handleJoinFromLobby = () => {
+    const nextRoomId = parseRoomInput(lobbyRoomInput);
+    if (!nextRoomId) {
+      setEntryError("Enter a room code or paste a session link.");
+      return;
+    }
+    setEntryError(null);
+    navigate(
+      `/session/${encodeURIComponent(nextRoomId)}?name=${encodeURIComponent(roomName)}`
+    );
+  };
+
+  const handleCreateRoom = () => {
+    setEntryError(null);
+    navigate(
+      `/session/${encodeURIComponent(newRoomId)}?name=${encodeURIComponent(roomName)}`
+    );
+  };
+
+  const handleCopyLink = async () => {
+    if (!roomId && !newRoomId) return;
+    const id = roomId ?? newRoomId;
+    const url = `${window.location.origin}/session/${encodeURIComponent(id)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch (error) {
+      console.warn("[Session] Failed to copy link", error);
+      setCopyStatus("error");
+      window.setTimeout(() => setCopyStatus("idle"), 2000);
+    }
+  };
+
+  const buildAiPrompt = (mode: "summary" | "notes") => {
+    const noteText = notesDraft.trim() || "No notes yet.";
+    const chatText = chatMessages
+      .slice(-20)
+      .map((message) => `${message.displayName}: ${message.text}`)
+      .join("\n");
+    const header =
+      mode === "summary"
+        ? "Summarize the session notes and chat in 5-8 concise bullets."
+        : "Turn the notes and chat into clean session notes with headings.";
+    const guidance =
+      mode === "summary"
+        ? "Focus on key events, NPCs, locations, decisions, and next steps."
+        : "Use Markdown headings for Highlights, NPCs, Locations, Loot, and Next Steps.";
+    return [
+      "You are the session scribe for a tabletop RPG.",
+      header,
+      guidance,
+      "Do not invent details that are not in the notes or chat.",
+      "",
+      "Notes:",
+      noteText,
+      "",
+      "Chat:",
+      chatText || "No chat messages yet."
+    ].join("\n");
+  };
+
+  const runAiRequest = async (mode: "summary" | "notes") => {
+    setAiError(null);
+    if (mode === "summary") {
+      setAiSummaryLoading(true);
+    } else {
+      setAiNotesLoading(true);
+    }
+    try {
+      const [
+        providerSetting,
+        openAiKey,
+        openAiModel,
+        openAiBaseUrl,
+        ollamaModel,
+        ollamaBaseUrl
+      ] = await Promise.all([
+        getSetting("aiProvider"),
+        getSetting("aiOpenAiKey"),
+        getSetting("aiOpenAiModel"),
+        getSetting("aiOpenAiBaseUrl"),
+        getSetting("aiOllamaModel"),
+        getSetting("aiOllamaBaseUrl")
+      ]);
+      const provider = ((providerSetting ?? "none") as AiProvider) || "none";
+      const prompt = buildAiPrompt(mode);
+      const response = await sendPromptToProvider({
+        provider,
+        prompt,
+        settings: {
+          openAiKey,
+          openAiModel,
+          openAiBaseUrl,
+          ollamaModel,
+          ollamaBaseUrl
+        }
+      });
+      if (mode === "summary") {
+        setSummaryDraft(response.content);
+        setSummaryOpen(true);
+      } else {
+        const dateLabel = new Date().toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        });
+        const block = `\n\n## AI Notes — ${dateLabel}\n\n${response.content.trim()}\n`;
+        setNotesDraft((current) => `${current.trimEnd()}${block}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI request failed.";
+      setAiError(message);
+    } finally {
+      if (mode === "summary") {
+        setAiSummaryLoading(false);
+      } else {
+        setAiNotesLoading(false);
+      }
+    }
+  };
+
   if (!roomId) {
     return (
       <div className="min-h-screen px-6 py-12">
-        <div className="mx-auto max-w-3xl page-panel p-8 text-center">
-          <h1 className="text-2xl font-display text-ink">
-            Session room not found.
-          </h1>
-          <p className="mt-3 text-sm text-ink-soft">
-            Check the session link and try again.
-          </p>
+        <div className="mx-auto max-w-4xl page-panel p-8 session-reveal">
+          <div className="flex flex-col gap-8">
+            <header className="space-y-2 text-center">
+              <p className="text-xs font-ui uppercase tracking-[0.3em] text-ink-soft">
+                Session Lobby
+              </p>
+              <h1 className="text-3xl font-display text-ink">
+                Start or join a table.
+              </h1>
+              <p className="text-sm text-ink-soft">
+                Share a room link for audio, captions, and shared notes.
+              </p>
+            </header>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-2xl border border-page-edge bg-parchment/70 p-6">
+                <h2 className="text-sm font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Create Room
+                </h2>
+                <label className="mt-4 block text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Room Name
+                  <input
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-page-edge bg-parchment/80 px-4 py-3 text-sm font-body text-ink"
+                  />
+                </label>
+                <label className="mt-4 block text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Room Code
+                  <input
+                    value={newRoomId}
+                    onChange={(event) => setNewRoomId(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-page-edge bg-parchment/80 px-4 py-3 text-sm font-body text-ink"
+                  />
+                </label>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setNewRoomId(createId().slice(0, 8))}
+                    className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+                  >
+                    Generate Code
+                  </button>
+                  <button
+                    onClick={handleCreateRoom}
+                    className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+                  >
+                    Create & Join
+                  </button>
+                  <button
+                    onClick={handleCopyLink}
+                    className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+                  >
+                    {copyStatus === "copied"
+                      ? "Link Copied"
+                      : copyStatus === "error"
+                      ? "Copy Failed"
+                      : "Copy Link"}
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-page-edge bg-parchment/70 p-6">
+                <h2 className="text-sm font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Join Room
+                </h2>
+                <label className="mt-4 block text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Room Code or Link
+                  <input
+                    value={lobbyRoomInput}
+                    onChange={(event) => setLobbyRoomInput(event.target.value)}
+                    placeholder="Paste a session link or room code"
+                    className="mt-2 w-full rounded-xl border border-page-edge bg-parchment/80 px-4 py-3 text-sm font-body text-ink"
+                  />
+                </label>
+                <label className="mt-4 block text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
+                  Display Name
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Your name at the table"
+                    className="mt-2 w-full rounded-xl border border-page-edge bg-parchment/80 px-4 py-3 text-sm font-body text-ink"
+                  />
+                </label>
+                {entryError ? (
+                  <div className="mt-4 rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-sm text-ink">
+                    {entryError}
+                  </div>
+                ) : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={handleJoinFromLobby}
+                    className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+                  >
+                    Join Session
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-ink-soft text-center">
+              Audio + captions require browser mic permissions.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -393,6 +635,27 @@ export default function SessionPage() {
                 placeholder="Scribble notes, link [[Places]], capture what the world reveals."
                 className="mt-3 h-56 w-full resize-none rounded-xl border border-page-edge bg-parchment/70 px-4 py-3 text-sm font-body text-ink"
               />
+              {aiError ? (
+                <div className="mt-3 rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-xs text-ink">
+                  {aiError}
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => runAiRequest("notes")}
+                  disabled={aiNotesLoading}
+                  className="rounded-full border border-page-edge px-4 py-2 text-[0.6rem] font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {aiNotesLoading ? "Drafting Notes..." : "AI Notes"}
+                </button>
+                <button
+                  onClick={() => runAiRequest("summary")}
+                  disabled={aiSummaryLoading}
+                  className="rounded-full border border-page-edge px-4 py-2 text-[0.6rem] font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {aiSummaryLoading ? "Summarizing..." : "AI Summary"}
+                </button>
+              </div>
               <p className="mt-2 text-xs text-ink-soft">
                 Markdown and wikilinks are supported. Notes stay on this device.
               </p>

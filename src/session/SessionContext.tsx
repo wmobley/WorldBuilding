@@ -81,6 +81,25 @@ const getSpeechRecognition = () => {
   return win.SpeechRecognition ?? win.webkitSpeechRecognition;
 };
 
+const buildLocalNotesKey = (roomId: string) => `wb:sessionNotes:${roomId}`;
+
+const readLocalNotes = (roomId: string) => {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(buildLocalNotesKey(roomId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { content?: string; updatedAt?: number };
+    if (typeof parsed.content !== "string") return null;
+    return {
+      content: parsed.content,
+      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0
+    };
+  } catch (error) {
+    console.warn("[Session] Failed to read local notes", error);
+    return null;
+  }
+};
+
 type JoinPayload = {
   roomId: string;
   roomName: string;
@@ -153,6 +172,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const localPeerIdRef = useRef<string | null>(null);
   const notesHydratedRef = useRef(false);
+  const localNotesUpdatedAtRef = useRef<number | null>(null);
   const mediaRequestIdRef = useRef(0);
 
   const supportsCaptions = Boolean(getSpeechRecognition());
@@ -196,10 +216,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     notesHydratedRef.current = false;
+    localNotesUpdatedAtRef.current = null;
   }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
+    const localNotes = readLocalNotes(roomId);
+    if (localNotes && !notesHydratedRef.current) {
+      setNotesDraft(localNotes.content);
+      notesHydratedRef.current = true;
+      localNotesUpdatedAtRef.current = localNotes.updatedAt;
+    }
     getSessionNotes(roomId)
       .then((sessionNotes) => {
         if (!sessionNotes) {
@@ -208,9 +235,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           }
           return;
         }
-        if (!notesHydratedRef.current) {
+        const localUpdatedAt = localNotesUpdatedAtRef.current ?? 0;
+        if (!notesHydratedRef.current || sessionNotes.updatedAt > localUpdatedAt) {
           setNotesDraft(sessionNotes.content);
           notesHydratedRef.current = true;
+          localNotesUpdatedAtRef.current = sessionNotes.updatedAt;
         }
       })
       .catch(() => undefined);
@@ -231,6 +260,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!roomId || !joined) return;
     saveNotes(notesDraft);
   }, [notesDraft, roomId, joined, saveNotes]);
+
+  useEffect(() => {
+    if (!roomId || !joined || typeof window === "undefined") return;
+    const updatedAt = Date.now();
+    window.localStorage.setItem(
+      buildLocalNotesKey(roomId),
+      JSON.stringify({ content: notesDraft, updatedAt })
+    );
+    localNotesUpdatedAtRef.current = updatedAt;
+  }, [notesDraft, roomId, joined]);
 
   const addParticipant = (entry: Participant) => {
     setParticipants((current) => {

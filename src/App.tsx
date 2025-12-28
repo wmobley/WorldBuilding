@@ -26,6 +26,7 @@ export default function App() {
         <Route path="/campaign/:id/player" element={<PlayerViewPage />} />
         <Route path="/invite/:inviteId" element={<InvitePage />} />
         <Route path="/reference/:slug" element={<ReferencePage />} />
+        <Route path="/session" element={<SessionPage />} />
         <Route path="/session/:roomId" element={<SessionPage />} />
       </Routes>
       <SessionDock />
