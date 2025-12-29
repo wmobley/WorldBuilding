@@ -1,0 +1,69 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "underdark_encounters_d100",
+  "title": "Underdark Encounters",
+  "selectors": {
+    "type": "table",
+    "terrain": "underdark",
+    "encounter_type": "combat",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        5
+      ],
+      "text": "Giant spiders",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Giant Spider",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        11,
+        15
+      ],
+      "text": "Cave-in",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        51,
+        55
+      ],
+      "text": "Slimes",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [],
+      "needs_homebrew": true,
+      "notes": "Not SRD guaranteed"
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "Underdark stirs",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

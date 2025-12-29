@@ -12,10 +12,12 @@ import {
   ShareIcon,
   TrashIcon
 } from "@primer/octicons-react";
-import type { Doc, Folder } from "../vault/types";
+import type { Doc, Folder, ReferenceEntry } from "../vault/types";
 import Editor, { type EditorHandle } from "./Editor";
 import MarkdownPreview from "./MarkdownPreview";
 import { formatRelativeTime } from "../lib/text";
+import PrepPanel from "./marginalia/PrepPanel";
+import type { PrepHelpers } from "../prep/helpers";
 
 export default function PagePanel({
   doc,
@@ -41,7 +43,13 @@ export default function PagePanel({
   npcCreatures,
   npcCreatureId,
   onUpdateNpcCreature,
-  showNpcTools
+  showNpcTools,
+  prepHelpers,
+  partyConfig,
+  onPartyConfigChange,
+  bestiaryReferences,
+  sinceDate,
+  onSinceDateChange
 }: {
   doc: Doc | null;
   folders: Folder[];
@@ -77,6 +85,16 @@ export default function PagePanel({
   npcCreatureId?: string | null;
   onUpdateNpcCreature?: (creatureId: string | null) => void;
   showNpcTools?: boolean;
+  prepHelpers: PrepHelpers | null;
+  partyConfig: { size: number; level: number; difficulty: "easy" | "medium" | "hard" | "deadly" };
+  onPartyConfigChange: (next: {
+    size: number;
+    level: number;
+    difficulty: "easy" | "medium" | "hard" | "deadly";
+  }) => void;
+  bestiaryReferences: ReferenceEntry[];
+  sinceDate: string;
+  onSinceDateChange: (value: string) => void;
 }) {
   const editorRef = useRef<EditorHandle | null>(null);
   const [npcSelectorOpen, setNpcSelectorOpen] = useState(false);
@@ -164,13 +182,31 @@ export default function PagePanel({
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-4 chapter-divider pb-4">
-        <input
-          value={doc.title}
-          onChange={(event) => onTitleChange(event.target.value)}
-          id="page-title"
-          className="w-full md:w-auto text-2xl font-display bg-transparent focus:outline-none"
-        />
+        <div className="flex w-full flex-col gap-1 md:w-auto">
+          <label
+            htmlFor="page-title"
+            className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+            data-tooltip="Page title shown in the sidebar and breadcrumbs."
+          >
+            Title
+          </label>
+          <input
+            value={doc.title}
+            onChange={(event) => onTitleChange(event.target.value)}
+            id="page-title"
+            placeholder="Untitled Page"
+            aria-label="Page title"
+            className="w-full md:w-auto text-2xl font-display bg-transparent focus:outline-none"
+          />
+        </div>
         <div className="flex items-center gap-3">
+          <label
+            htmlFor="page-folder-select"
+            className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+            data-tooltip="Move this page to a folder."
+          >
+            Folder
+          </label>
           <select
             value={doc.folderId ?? "root"}
             onChange={(event) =>
@@ -246,23 +282,29 @@ export default function PagePanel({
           </div>
           {npcSelectorOpen && (
             <div className="mt-3 grid gap-2">
-              <select
-                value={npcCreatureId ?? "none"}
-                onChange={(event) =>
-                  onUpdateNpcCreature(event.target.value === "none" ? null : event.target.value)
-                }
-                className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+              <label
+                className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+                data-tooltip="Link an NPC to a creature stat block."
               >
-                <option value="none">No base creature</option>
-                {npcCreatures
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((creature) => (
-                    <option key={creature.id} value={creature.id}>
-                      {creature.name} · {creature.source}
-                    </option>
-                  ))}
-              </select>
+                Base Creature
+                <select
+                  value={npcCreatureId ?? "none"}
+                  onChange={(event) =>
+                    onUpdateNpcCreature(event.target.value === "none" ? null : event.target.value)
+                  }
+                  className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                >
+                  <option value="none">No base creature</option>
+                  {npcCreatures
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((creature) => (
+                      <option key={creature.id} value={creature.id}>
+                        {creature.name} · {creature.source}
+                      </option>
+                    ))}
+                </select>
+              </label>
               <p className="marginal-note">
                 Changing the base creature updates the linked stat block view.
               </p>
@@ -358,19 +400,36 @@ export default function PagePanel({
             >
               <TasklistIcon size={16} />
             </button>
+            <PrepPanel
+              variant="toolbar"
+              prepHelpers={prepHelpers}
+              partyConfig={partyConfig}
+              onPartyConfigChange={onPartyConfigChange}
+              bestiaryReferences={bestiaryReferences}
+              since={sinceDate}
+              onSinceChange={onSinceDateChange}
+            />
           </div>
         )}
         {mode === "edit" ? (
-          <Editor
-            ref={editorRef}
-            value={doc.body}
-            onChange={onBodyChange}
-            linkOptions={linkOptions}
-            tagOptions={tagOptions}
-            onPreviewDoc={onPreviewDoc}
-            onCursorLink={onCursorLink}
-            onMetaClickSelection={onMetaClickSelection}
-          />
+          <div className="space-y-2">
+            <div
+              className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+              data-tooltip="Markdown content for this page."
+            >
+              Page Content
+            </div>
+            <Editor
+              ref={editorRef}
+              value={doc.body}
+              onChange={onBodyChange}
+              linkOptions={linkOptions}
+              tagOptions={tagOptions}
+              onPreviewDoc={onPreviewDoc}
+              onCursorLink={onCursorLink}
+              onMetaClickSelection={onMetaClickSelection}
+            />
+          </div>
         ) : (
           <div id="page-preview">
             {doc.body.trim() ? (

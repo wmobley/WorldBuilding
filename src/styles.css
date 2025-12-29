@@ -140,6 +140,24 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
+.wb-tooltip--down::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.wb-tooltip--down::before {
+  top: calc(100% + 2px);
+  bottom: auto;
+  border-width: 0 5px 5px 5px;
+  border-color: transparent transparent hsl(var(--ink)) transparent;
+}
+
+.wb-tooltip--down:hover::after,
+.wb-tooltip--down:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+}
+
 .codemirror-shell {
   @apply text-base leading-relaxed font-body;
 }

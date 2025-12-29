@@ -1,0 +1,95 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "mountain_encounters_d100",
+  "title": "Mountain Encounters",
+  "selectors": {
+    "type": "table",
+    "terrain": "mountains",
+    "encounter_type": "combat",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        5
+      ],
+      "text": "Rockslide",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        11,
+        15
+      ],
+      "text": "Bandit ambush",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        31,
+        35
+      ],
+      "text": "Orc raiders",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Orc",
+          "count": "1d8",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        61,
+        65
+      ],
+      "text": "Wyvern sighting",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:5-10",
+      "monster_suggestions": [
+        {
+          "name": "Wyvern",
+          "count": "1",
+          "source": "homebrew",
+          "notes": "Use SRD if available"
+        }
+      ],
+      "needs_homebrew": true,
+      "notes": ""
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "Mountains stir",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

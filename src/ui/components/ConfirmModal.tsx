@@ -21,7 +21,8 @@ export default function ConfirmModal({
       <div className="flex flex-wrap justify-end gap-2 pt-2">
         <button
           onClick={onClose}
-          className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+          className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember wb-tooltip"
+          data-tooltip="Cancel this action"
         >
           Cancel
         </button>
@@ -30,7 +31,8 @@ export default function ConfirmModal({
             onConfirm();
             onClose();
           }}
-          className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember"
+          className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember wb-tooltip"
+          data-tooltip="Confirm and proceed"
         >
           {confirmLabel}
         </button>

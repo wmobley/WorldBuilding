@@ -938,7 +938,15 @@ export async function listReferencesBySlug(slug: string) {
     .eq("slug", slug)
     .order("name", { ascending: true });
   logSupabaseError("listReferencesBySlug", error);
-  return (data ?? []).map(mapReference);
+  const entries = (data ?? []).map(mapReference);
+  if (slug !== "bestiary") return entries;
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = `${entry.name.toLowerCase()}::${(entry.source ?? "srd").toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function listAllReferences() {

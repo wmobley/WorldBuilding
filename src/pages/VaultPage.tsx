@@ -54,6 +54,12 @@ export default function VaultPage() {
   const [viewMode, setViewMode] = useState<"worldview" | "timeline" | "maps">(
     "worldview"
   );
+  const [partyConfig, setPartyConfig] = useState<{
+    size: number;
+    level: number;
+    difficulty: "easy" | "medium" | "hard" | "deadly";
+  }>({ size: 4, level: 3, difficulty: "medium" });
+  const [sinceDate, setSinceDate] = useState("");
   const [pageMode, setPageMode] = useState<"edit" | "preview">(() => {
     if (typeof window === "undefined") return "edit";
     const stored = window.localStorage.getItem("pageMode");
@@ -123,9 +129,10 @@ export default function VaultPage() {
       buildPrepHelpers({
         context: worldbuildContext ?? null,
         folders: folders ?? [],
-        bestiaryReferences: bestiaryReferences ?? []
+        party: partyConfig,
+        since: sinceDate ? new Date(sinceDate).toISOString() : undefined
       }),
-    [worldbuildContext, folders, bestiaryReferences]
+    [worldbuildContext, folders, partyConfig, sinceDate]
   );
   const isPeopleDoc = useMemo(() => {
     if (!currentDoc?.folderId) return false;
@@ -496,7 +503,14 @@ export default function VaultPage() {
           ...(docs ?? [])
             .filter((doc) => !isIndexDoc(doc))
             .map((doc) => ({ ...doc, kind: "doc" as const })),
-          ...(references ?? []).map((ref) => ({
+          ...(references ?? []).filter((ref) => ref.slug !== "bestiary").map((ref) => ({
+            id: ref.id,
+            title: ref.name,
+            body: ref.content,
+            kind: "reference" as const,
+            slug: ref.slug
+          })),
+          ...(bestiaryReferences ?? []).map((ref) => ({
             id: ref.id,
             title: ref.name,
             body: ref.content,
@@ -601,6 +615,11 @@ export default function VaultPage() {
         chatLinkDocs={(docs ?? []).filter((doc) => !isIndexDoc(doc))}
         chatTagOptions={chatTagOptions ?? []}
         prepHelpers={prepHelpers}
+        partyConfig={partyConfig}
+        onPartyConfigChange={setPartyConfig}
+        bestiaryReferences={bestiaryReferences ?? []}
+        sinceDate={sinceDate}
+        onSinceDateChange={setSinceDate}
       />
       <VaultModals
         quickOpenDocs={quickOpenDocs}

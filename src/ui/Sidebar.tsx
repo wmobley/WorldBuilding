@@ -374,22 +374,29 @@ export default function Sidebar({
           <div className="mt-3 space-y-4">
         {templates.length > 0 && (
           <div id="sidebar-templates" className="space-y-2">
-            <div className="font-ui text-sm uppercase tracking-[0.18em] text-ink-soft">
+            <div className="font-ui text-sm uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Create a new page using a template.">
               New Page From Template
             </div>
             <div className="flex flex-col gap-2 md:flex-row">
-              <select
-                value={selectedTemplateId}
-                onChange={(event) => setSelectedTemplateId(event.target.value)}
-                id="template-select"
-                className="w-full md:flex-1 rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+              <label
+                htmlFor="template-select"
+                className="flex-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+                data-tooltip="Choose a template for the new page."
               >
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.label}
-                  </option>
-                ))}
-              </select>
+                <span className="sr-only">Template</span>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(event) => setSelectedTemplateId(event.target.value)}
+                  id="template-select"
+                  className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                >
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 onClick={() => {
                   if (!selectedTemplate) return;

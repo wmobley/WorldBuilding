@@ -76,12 +76,11 @@ export function generateEncounter({
   partyLevel: number;
   difficulty: "easy" | "medium" | "hard" | "deadly";
 }) {
-  const threshold = THRESHOLDS[partyLevel]?.[difficulty] ?? 0;
-  const budget = threshold * partySize;
+  const budget = getEncounterBudget({ partySize, partyLevel, difficulty });
   const entries = monsters
     .map((monster) => ({
       ...monster,
-      xp: XP_BY_CR[monster.cr] ?? 0
+      xp: getMonsterXp(monster.cr)
     }))
     .filter((monster) => monster.xp > 0)
     .sort((a, b) => a.xp - b.xp);
@@ -100,4 +99,21 @@ export function generateEncounter({
   }
 
   return { budget, results, totalXp: budget - remaining };
+}
+
+export function getMonsterXp(cr: string) {
+  return XP_BY_CR[cr] ?? 0;
+}
+
+export function getEncounterBudget({
+  partySize,
+  partyLevel,
+  difficulty
+}: {
+  partySize: number;
+  partyLevel: number;
+  difficulty: "easy" | "medium" | "hard" | "deadly";
+}) {
+  const threshold = THRESHOLDS[partyLevel]?.[difficulty] ?? 0;
+  return threshold * partySize;
 }

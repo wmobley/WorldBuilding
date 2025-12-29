@@ -28,7 +28,10 @@ export default function CampaignModal({
 
   return (
     <Modal isOpen={isOpen} title="Create Campaign" onClose={onClose}>
-      <label className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft">
+      <label
+        className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+        data-tooltip="The name shown in the header and invitations."
+      >
         <span>Campaign name</span>
         <input
           autoFocus
@@ -38,7 +41,10 @@ export default function CampaignModal({
           className="w-full rounded-xl border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-body text-ink"
         />
       </label>
-      <label className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft">
+      <label
+        className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+        data-tooltip="Short pitch used by worldbuild prompts."
+      >
         <span>Synopsis</span>
         <textarea
           value={synopsis}

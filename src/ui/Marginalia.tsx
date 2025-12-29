@@ -5,10 +5,8 @@ import MonsterStatBlock from "./MonsterStatBlock";
 import { ChevronDownIcon, ChevronUpIcon } from "@primer/octicons-react";
 import { usePanelCollapse } from "./usePanelCollapse";
 import BacklinksPanel from "./marginalia/BacklinksPanel";
-import PrepPanel from "./marginalia/PrepPanel";
 import TagsPanel from "./marginalia/TagsPanel";
 import WorldbuildPanel from "./marginalia/WorldbuildPanel";
-import type { PrepHelpers } from "../prep/helpers";
 
 export type Backlink = {
   source: Doc;
@@ -69,8 +67,7 @@ export default function Marginalia({
   onSendAiChat,
   onClearAiChat,
   chatLinkDocs,
-  chatTagOptions,
-  prepHelpers
+  chatTagOptions
 }: {
   backlinks: Backlink[];
   tags: Tag[];
@@ -128,7 +125,6 @@ export default function Marginalia({
   onClearAiChat: () => void;
   chatLinkDocs: Array<{ id: string; title: string }>;
   chatTagOptions: Array<{ type: string; value: string }>;
-  prepHelpers: PrepHelpers | null;
 }) {
   const mapGroups = mapPins.reduce((groups, pin) => {
     if (!pin.map) return groups;
@@ -175,7 +171,6 @@ export default function Marginalia({
         chatLinkDocs={chatLinkDocs}
         chatTagOptions={chatTagOptions}
       />
-      <PrepPanel prepHelpers={prepHelpers} />
       {mapGroups.size > 0 && (
         <div id="marginalia-maps" className="page-panel p-4">
           <div className="flex items-center justify-between chapter-divider pb-3">

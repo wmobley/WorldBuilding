@@ -73,31 +73,39 @@ export default function HeaderBar({
         </button>
         <div className="flex items-center gap-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
           {onSelectCampaign ? (
-            <select
-              value={activeCampaignId ?? ""}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === "__new__") {
-                  onCreateCampaign?.();
-                  return;
-                }
-                onSelectCampaign(value);
-              }}
-              id="header-campaign-select"
-              className="rounded-full border border-page-edge bg-parchment/80 px-3 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft"
+            <label
+              htmlFor="header-campaign-select"
+              className="wb-tooltip wb-tooltip--down"
+              data-tooltip="Switch active world."
             >
-              <option value="" disabled>
-                {campaigns && campaigns.length > 0
-                  ? "Select a world"
-                  : "No worlds"}
-              </option>
-              {(campaigns ?? []).map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
+              <span className="sr-only">World</span>
+              <select
+                value={activeCampaignId ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === "__new__") {
+                    onCreateCampaign?.();
+                    return;
+                  }
+                  onSelectCampaign(value);
+                }}
+                id="header-campaign-select"
+                aria-label="Select world"
+                className="rounded-full border border-page-edge bg-parchment/80 px-3 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft"
+              >
+                <option value="" disabled>
+                  {campaigns && campaigns.length > 0
+                    ? "Select a world"
+                    : "No worlds"}
                 </option>
-              ))}
-              <option value="__new__">Create new world…</option>
-            </select>
+                {(campaigns ?? []).map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))}
+                <option value="__new__">Create new world…</option>
+              </select>
+            </label>
           ) : (
             <span>{subtitle}</span>
           )}
@@ -113,7 +121,7 @@ export default function HeaderBar({
             <button
               onClick={() => setOpenMenu(openMenu === "dm" ? null : "dm")}
               id="header-nav-dm"
-              className="rounded-full border border-page-edge px-3 py-2 text-ink-soft hover:text-ember wb-tooltip"
+              className="rounded-full border border-page-edge px-3 py-2 text-ink-soft hover:text-ember wb-tooltip wb-tooltip--down"
               data-tooltip="Dungeon Master"
             >
               Dungeon Master
@@ -121,7 +129,7 @@ export default function HeaderBar({
             <button
               onClick={() => setOpenMenu(openMenu === "ref" ? null : "ref")}
               id="header-nav-ref"
-              className="rounded-full border border-page-edge px-3 py-2 text-ink-soft hover:text-ember wb-tooltip"
+              className="rounded-full border border-page-edge px-3 py-2 text-ink-soft hover:text-ember wb-tooltip wb-tooltip--down"
               data-tooltip="References"
             >
               References
@@ -133,7 +141,7 @@ export default function HeaderBar({
                     navigate(`/session?name=${encodeURIComponent(sessionRoomId)}`);
                     setOpenMenu(null);
                   }}
-                  className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                  className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip wb-tooltip--down"
                   data-tooltip="Open interactive video room"
                 >
                   Interactive Video Room
@@ -146,7 +154,7 @@ export default function HeaderBar({
                       onNavigateReference(item.slug);
                       setOpenMenu(null);
                     }}
-                    className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                    className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip wb-tooltip--down"
                     data-tooltip={`Open ${item.label}`}
                   >
                     {item.label}
@@ -163,7 +171,7 @@ export default function HeaderBar({
                       onNavigateReference(item.slug);
                       setOpenMenu(null);
                     }}
-                    className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                    className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip wb-tooltip--down"
                     data-tooltip={`Open ${item.label}`}
                   >
                     {item.label}
@@ -174,13 +182,21 @@ export default function HeaderBar({
           </div>
         )}
         <div className="relative">
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search the vault by title…"
-            id="header-search"
-            className="w-64 rounded-full border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-ui shadow-page"
-          />
+          <label
+            htmlFor="header-search"
+            className="wb-tooltip wb-tooltip--down"
+            data-tooltip="Search page titles in this world."
+          >
+            <span className="sr-only">Search pages</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search the vault by title…"
+              id="header-search"
+              aria-label="Search pages"
+              className="w-64 rounded-full border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-ui shadow-page"
+            />
+          </label>
           {matches.length > 0 && (
             <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-page-edge bg-parchment/95 shadow-page z-10">
               {matches.map((doc) => (
@@ -203,7 +219,7 @@ export default function HeaderBar({
           <button
             onClick={() => setProfileOpen((value) => !value)}
             id="header-profile"
-            className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember wb-tooltip"
+            className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft hover:text-ember wb-tooltip wb-tooltip--down"
             data-tooltip="Profile"
           >
             Profile
@@ -220,7 +236,7 @@ export default function HeaderBar({
                   onOpenSettings?.();
                   setProfileOpen(false);
                 }}
-                className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip wb-tooltip--down"
                 data-tooltip="Open settings"
               >
                 Settings
@@ -230,7 +246,7 @@ export default function HeaderBar({
                   signOut().catch(() => undefined);
                   setProfileOpen(false);
                 }}
-                className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip"
+                className="block w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-parchment/70 wb-tooltip wb-tooltip--down"
                 data-tooltip="Sign out"
               >
                 Sign out

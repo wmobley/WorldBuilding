@@ -47,13 +47,18 @@ export type LootResult = {
   magicItems: string[];
 };
 
-export function generateLoot(loot: LootData, cr: number, mode: "individual" | "hoard") {
+export function generateLoot(
+  loot: LootData,
+  cr: number,
+  mode: "individual" | "hoard",
+  rng: () => number = Math.random
+) {
   const tables = mode === "individual" ? loot.individual : loot.hoard;
   const table =
     tables.find((entry) => cr >= (entry.crMin ?? 0) && cr <= (entry.crMax ?? 100)) ??
     tables[0];
   if (!table) return null;
-  const roll = rollDice("1d100");
+  const roll = rollDice("1d100", rng);
   const row = (table.table ?? []).find((entry) => roll >= entry.min && roll <= entry.max);
   const result: LootResult = { coins: [], valuables: [], magicItems: [] };
   if (row?.coins) {
@@ -61,15 +66,15 @@ export function generateLoot(loot: LootData, cr: number, mode: "individual" | "h
   }
   if (mode === "hoard") {
     (table.gems ?? []).forEach((entry) => {
-      const list = drawValuables(loot.gems, entry.type, entry.qty);
+      const list = drawValuables(loot.gems, entry.type, entry.qty, rng);
       result.valuables.push(...list);
     });
     (table.artObjects ?? []).forEach((entry) => {
-      const list = drawValuables(loot.artObjects, entry.type, entry.qty);
+      const list = drawValuables(loot.artObjects, entry.type, entry.qty, rng);
       result.valuables.push(...list);
     });
     (table.magicItems ?? []).forEach((entry) => {
-      const items = drawMagicItems(loot.magicItems, entry.table, entry.qty);
+      const items = drawMagicItems(loot.magicItems, entry.table, entry.qty, rng);
       result.magicItems.push(...items);
     });
   }
@@ -82,15 +87,16 @@ function drawValuables(
     table: Array<{ min: number; max: number; item: string }> | string[];
   }>,
   type = "",
-  qty = ""
+  qty = "",
+  rng: () => number = Math.random
 ) {
-  const total = rollDice(qty || "1");
+  const total = rollDice(qty || "1", rng);
   const table = tables.find((entry) => String(entry.type) === String(type));
   if (!table) return [];
   const results: string[] = [];
   if (table.table.length > 0 && typeof table.table[0] === "string") {
     for (let i = 0; i < total; i += 1) {
-      const roll = rollDice("1d100");
+      const roll = rollDice("1d100", rng);
       const index = Math.min(
         Math.max(Math.floor((roll - 1) / 100 * table.table.length), 0),
         table.table.length - 1
@@ -101,7 +107,7 @@ function drawValuables(
     return results;
   }
   for (let i = 0; i < total; i += 1) {
-    const roll = rollDice("1d100");
+    const roll = rollDice("1d100", rng);
     const row = (table.table as Array<{ min: number; max: number; item: string }>).find(
       (entry) => roll >= entry.min && roll <= entry.max
     );
@@ -132,9 +138,10 @@ function drawMagicItems(
       }
   >,
   tableName = "",
-  qty = ""
+  qty = "",
+  rng: () => number = Math.random
 ) {
-  const total = rollDice(qty || "1");
+  const total = rollDice(qty || "1", rng);
   const table = tables.find((entry) => {
     if ("items" in entry) {
       return entry.table === tableName;
@@ -151,7 +158,7 @@ function drawMagicItems(
   const results: string[] = [];
   for (let i = 0; i < total; i += 1) {
     if ("items" in table) {
-      const roll = rollDice("1d100");
+      const roll = rollDice("1d100", rng);
       const index = Math.min(
         Math.max(Math.floor((roll - 1) / 100 * table.items.length), 0),
         table.items.length - 1
@@ -160,7 +167,7 @@ function drawMagicItems(
       if (item) results.push(item);
       continue;
     }
-    const roll = rollDice("1d100");
+    const roll = rollDice("1d100", rng);
     const row = table.table.find((entry) => roll >= entry.min && roll <= entry.max);
     if (row?.item) {
       results.push(row.item);
@@ -168,7 +175,7 @@ function drawMagicItems(
     }
     const choices = row?.choose?.fromGroup ?? row?.choose?.fromGeneric ?? [];
     if (choices.length > 0) {
-      const choiceIndex = Math.floor(Math.random() * choices.length);
+      const choiceIndex = Math.floor(rng() * choices.length);
       const pick = choices[choiceIndex];
       if (pick) results.push(pick);
       continue;
@@ -181,16 +188,16 @@ function drawMagicItems(
   return results;
 }
 
-function rollDice(expression: string) {
-  const match = expression.match(/(\\d+)d(\\d+)(?:\\s*[+\\-]\\s*\\d+)?/i);
+function rollDice(expression: string, rng: () => number = Math.random) {
+  const match = expression.match(/(\d+)d(\d+)(?:\s*[+\-]\s*\d+)?/i);
   if (!match) return Number(expression) || 0;
   const count = Number(match[1]);
   const sides = Number(match[2]);
-  const modifierMatch = expression.match(/[+\\-]\\s*(\\d+)/);
+  const modifierMatch = expression.match(/[+\-]\s*(\d+)/);
   const modifier = modifierMatch ? Number(modifierMatch[0].replace(/\s/g, "")) : 0;
   let total = 0;
   for (let i = 0; i < count; i += 1) {
-    total += Math.floor(Math.random() * sides) + 1;
+    total += Math.floor(rng() * sides) + 1;
   }
   return total + modifier;
 }

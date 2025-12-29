@@ -1,0 +1,214 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "forest_encounters_d100",
+  "title": "Forest Encounters",
+  "selectors": {
+    "type": "table",
+    "terrain": "forest",
+    "encounter_type": "combat",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        3
+      ],
+      "text": "Wolf pack stalking the party",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [
+        {
+          "name": "Wolf",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        4,
+        6
+      ],
+      "text": "Goblin scouts watching from cover",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [
+        {
+          "name": "Goblin",
+          "count": "1d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        7,
+        9
+      ],
+      "text": "Bandits arguing over loot",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        10,
+        12
+      ],
+      "text": "Giant spiders\u2019 web-choked clearing",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Giant Spider",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        13,
+        15
+      ],
+      "text": "Lone druid tending wounded animals",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Social"
+    },
+    {
+      "range": [
+        16,
+        18
+      ],
+      "text": "Traveling merchants with guards",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        22,
+        24
+      ],
+      "text": "Owlbear territorial display",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Owlbear",
+          "count": "1",
+          "source": "homebrew",
+          "notes": "Use SRD if available"
+        }
+      ],
+      "needs_homebrew": true,
+      "notes": ""
+    },
+    {
+      "range": [
+        37,
+        39
+      ],
+      "text": "Goblin ambush from trees",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Goblin",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Goblin Boss",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        49,
+        51
+      ],
+      "text": "Bandit toll checkpoint",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Thug",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        88,
+        90
+      ],
+      "text": "Dire wolf alpha",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Dire Wolf",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "Forest awakens",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

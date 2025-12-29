@@ -57,7 +57,8 @@ export default function MonsterStatBlock({
           {onCreateNpc && !compact && (
             <button
               onClick={onCreateNpc}
-              className="rounded-full border border-page-edge px-3 py-1 text-[11px] font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
+              className="rounded-full border border-page-edge px-3 py-1 text-[11px] font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember wb-tooltip"
+              data-tooltip="Create a new NPC linked to this creature."
             >
               Create NPC
             </button>

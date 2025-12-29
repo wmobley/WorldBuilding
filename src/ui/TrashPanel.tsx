@@ -60,13 +60,15 @@ export default function TrashPanel({
                 <div className="flex flex-wrap gap-2 text-xs font-ui uppercase tracking-[0.18em]">
                   <button
                     onClick={() => onRestoreFolder(folder.id)}
-                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember"
+                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember wb-tooltip"
+                    data-tooltip="Restore this chapter"
                   >
                     Restore
                   </button>
                   <button
                     onClick={() => onPurgeFolder(folder.id)}
-                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember"
+                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember wb-tooltip"
+                    data-tooltip="Permanently delete this chapter"
                   >
                     Delete Forever
                   </button>
@@ -100,13 +102,15 @@ export default function TrashPanel({
                 <div className="flex flex-wrap gap-2 text-xs font-ui uppercase tracking-[0.18em]">
                   <button
                     onClick={() => onRestoreDoc(doc.id)}
-                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember"
+                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember wb-tooltip"
+                    data-tooltip="Restore this page"
                   >
                     Restore
                   </button>
                   <button
                     onClick={() => onPurgeDoc(doc.id)}
-                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember"
+                    className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember wb-tooltip"
+                    data-tooltip="Permanently delete this page"
                   >
                     Delete Forever
                   </button>

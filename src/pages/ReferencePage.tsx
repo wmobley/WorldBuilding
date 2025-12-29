@@ -13,11 +13,13 @@ import { usePanelCollapse } from "../ui/usePanelCollapse";
 import { ChevronDownIcon, ChevronUpIcon } from "@primer/octicons-react";
 import { render5eToolsMarkdown } from "../lib/importExport";
 import { getTableColumns, summarizeReference, buildReferenceRow } from "../lib/referenceTables";
-import { generateEncounter } from "../lib/encounter";
+import { generateEncounter, getEncounterBudget } from "../lib/encounter";
 import { calculateCr } from "../lib/crCalculator";
 import lootData from "../data/5etools/loot.json";
 import { generateLoot } from "../lib/loot";
 import type { ReferenceEntry } from "../vault/types";
+import { sendPromptToProvider, type AiProvider } from "../ai/client";
+import { tagVocabulary } from "../domain/tags/vocabulary";
 import {
   createCampaign,
   createDoc,
@@ -65,7 +67,8 @@ export default function ReferencePage() {
   const [encounterConfig, setEncounterConfig] = useState({
     partySize: 4,
     partyLevel: 3,
-    difficulty: "medium" as "easy" | "medium" | "hard" | "deadly"
+    difficulty: "medium" as "easy" | "medium" | "hard" | "deadly",
+    location: ""
   });
   const [lootConfig, setLootConfig] = useState({
     mode: "individual" as "individual" | "hoard",
@@ -74,6 +77,10 @@ export default function ReferencePage() {
   const referenceSidebarPanel = usePanelCollapse("reference-sidebar");
   const [lootResult, setLootResult] = useState<ReturnType<typeof generateLoot> | null>(null);
   const [encounterResult, setEncounterResult] = useState<ReturnType<typeof generateEncounter> | null>(null);
+  const [aiEncounterResult, setAiEncounterResult] = useState<string | null>(null);
+  const [aiEncounterProvider, setAiEncounterProvider] = useState<string | null>(null);
+  const [aiEncounterError, setAiEncounterError] = useState<string | null>(null);
+  const [aiEncounterLoading, setAiEncounterLoading] = useState(false);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const item = useMemo(
@@ -115,6 +122,22 @@ export default function ReferencePage() {
     [],
     { tables: ["references"] }
   );
+
+  const slugReferences = useMemo(() => {
+    const entries = references ?? [];
+    const seen = new Set<string>();
+    return entries.filter((entry) => {
+      const key = `${entry.name.toLowerCase()}::${(entry.source ?? "srd").toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [references]);
+
+  const terrainOptions = useMemo(() => {
+    const terrain = tagVocabulary.find((entry) => entry.namespace === "terrain");
+    return (terrain?.values ?? []).slice();
+  }, []);
 
   const tableSlugs = useMemo(
     () =>
@@ -267,18 +290,32 @@ export default function ReferencePage() {
     const entry = searchParams.get("entry");
     if (entry) {
       setActiveId(entry);
+      setQuery("");
+      setTypeFilter("all");
+      setCrFilter("all");
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!activeId || slug !== "bestiary") return;
+    const handle = window.requestAnimationFrame(() => {
+      const target = document.querySelector(`[data-entry-id="${activeId}"]`);
+      if (target instanceof HTMLElement) {
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+    return () => window.cancelAnimationFrame(handle);
+  }, [activeId, slug]);
+
   const bestiaryEntries = useMemo(() => {
     if (slug !== "bestiary") return [];
-    return (references ?? [])
+    return slugReferences
       .map((entry) => ({
         entry,
         summary: summarizeMonster(entry.rawJson)
       }))
       .filter((item) => item.summary);
-  }, [references, slug]);
+  }, [slug, slugReferences]);
 
   const availableTypes = useMemo(() => {
     const values = new Set<string>();
@@ -296,7 +333,7 @@ export default function ReferencePage() {
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [bestiaryEntries]);
 
-  const filtered = (references ?? []).filter((entry) =>
+  const filtered = slugReferences.filter((entry) =>
     entry.name.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -304,7 +341,7 @@ export default function ReferencePage() {
 
   const tableRows = useMemo(() => {
     if (!slug || !tableSlugs.has(slug)) return [];
-    return (references ?? [])
+    return slugReferences
       .map((entry) => {
         if (!entry.rawJson) return null;
         const payload = buildReferenceRow(entry.rawJson);
@@ -314,7 +351,7 @@ export default function ReferencePage() {
         return { entry, summary, detail };
       })
       .filter((row): row is { entry: ReferenceEntry; summary: NonNullable<ReturnType<typeof summarizeReference>>; detail: string } => Boolean(row));
-  }, [references, slug, tableSlugs]);
+  }, [slug, slugReferences, tableSlugs]);
 
   const filteredTableRows = useMemo(() => {
     if (!tableRows.length) return [];
@@ -327,6 +364,15 @@ export default function ReferencePage() {
       );
     });
   }, [query, tableRows]);
+
+  const activeReferenceDetail = useMemo(() => {
+    if (!activeReference) return "";
+    if (activeReference.rawJson) {
+      const payload = buildReferenceRow(activeReference.rawJson);
+      if (payload) return render5eToolsMarkdown(payload);
+    }
+    return activeReference.content ?? "";
+  }, [activeReference]);
 
   const dmCardViews = useMemo(() => {
     const cards = dmCards ?? [];
@@ -391,10 +437,164 @@ export default function ReferencePage() {
         if (!payload) return null;
         const cr = payload.cr ? String(payload.cr) : null;
         if (!cr) return null;
-        return { id: entry.id, name: entry.name, cr };
+        const environments = Array.isArray(payload.environment)
+          ? payload.environment.map((value) => String(value))
+          : [];
+        return { id: entry.id, name: entry.name, cr, environments };
       })
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   }, [bestiaryAll]);
+
+  const normalizeTerrain = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "hill") return "hills";
+    if (normalized === "mountain") return "mountains";
+    return normalized;
+  };
+
+  const parseCrValue = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.includes("/")) {
+      const [num, den] = trimmed.split("/").map(Number);
+      if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return null;
+      return num / den;
+    }
+    const asNumber = Number(trimmed);
+    return Number.isFinite(asNumber) ? asNumber : null;
+  };
+
+  const crRange = useMemo(() => {
+    const difficultyShift = {
+      easy: -1,
+      medium: 0,
+      hard: 1,
+      deadly: 2
+    } as const;
+    const target = encounterConfig.partyLevel + difficultyShift[encounterConfig.difficulty];
+    const min = Math.max(0, target - 2);
+    const max = Math.min(30, target + 2);
+    return { min, max };
+  }, [encounterConfig.partyLevel, encounterConfig.difficulty]);
+
+  const encounterPool = useMemo(() => {
+    const location = normalizeTerrain(encounterConfig.location);
+    const locationFiltered =
+      location.length === 0
+        ? encounterMonsters
+        : encounterMonsters.filter((entry) =>
+            entry.environments.map(normalizeTerrain).includes(location)
+          );
+    const crFiltered = locationFiltered.filter((entry) => {
+      const crValue = parseCrValue(entry.cr);
+      if (crValue === null) return false;
+      return crValue >= crRange.min && crValue <= crRange.max;
+    });
+    if (crFiltered.length > 0) return crFiltered;
+    if (locationFiltered.length > 0) return locationFiltered;
+    return encounterMonsters;
+  }, [encounterConfig.location, encounterMonsters, crRange]);
+
+  const buildEncounterPrompt = ({
+    location,
+    partySize,
+    partyLevel,
+    difficulty,
+    budget,
+    candidates
+  }: {
+    location: string;
+    partySize: number;
+    partyLevel: number;
+    difficulty: "easy" | "medium" | "hard" | "deadly";
+    budget: number;
+    candidates: Array<{ name: string; cr: string; environments: string[] }>;
+  }) => {
+    const locationLabel = location ? normalizeTerrain(location) : "any";
+    const lines = candidates.map((entry) => {
+      const env = entry.environments.length > 0 ? entry.environments.join(", ") : "any";
+      return `- ${entry.name} | CR ${entry.cr} | ${env}`;
+    });
+    return [
+      "You are a DM assistant. Build one D&D 5e encounter using only the monsters listed.",
+      `Location/terrain: ${locationLabel}.`,
+      `Party: ${partySize} characters, level ${partyLevel}. Difficulty: ${difficulty}.`,
+      `Target XP budget: ${budget}. Target CR band: ${crRange.min}-${crRange.max}.`,
+      "",
+      "Return markdown with these sections:",
+      "## Encounter Summary",
+      "## Monsters (name — CR — count)",
+      "## Tactics",
+      "## Hooks",
+      "## XP Math",
+      "",
+      "Available monsters:",
+      ...lines
+    ].join("\n");
+  };
+
+  const handleAiEncounter = async () => {
+    setAiEncounterError(null);
+    setAiEncounterResult(null);
+    setAiEncounterProvider(null);
+    setAiEncounterLoading(true);
+    try {
+      const [
+        aiProvider,
+        openAiKey,
+        openAiModel,
+        openAiBaseUrl,
+        ollamaModel,
+        ollamaBaseUrl
+      ] = await Promise.all([
+        getSetting("aiProvider"),
+        getSetting("aiOpenAiKey"),
+        getSetting("aiOpenAiModel"),
+        getSetting("aiOpenAiBaseUrl"),
+        getSetting("aiOllamaModel"),
+        getSetting("aiOllamaBaseUrl")
+      ]);
+      const provider = (aiProvider || "none") as AiProvider;
+      const budget = getEncounterBudget({
+        partySize: encounterConfig.partySize,
+        partyLevel: encounterConfig.partyLevel,
+        difficulty: encounterConfig.difficulty
+      });
+      const candidates = encounterPool
+        .slice(0, 160)
+        .map((entry) => ({
+          name: entry.name,
+          cr: entry.cr,
+          environments: entry.environments.map(normalizeTerrain)
+        }));
+      const prompt = buildEncounterPrompt({
+        location: encounterConfig.location,
+        partySize: encounterConfig.partySize,
+        partyLevel: encounterConfig.partyLevel,
+        difficulty: encounterConfig.difficulty,
+        budget,
+        candidates
+      });
+      const response = await sendPromptToProvider({
+        provider,
+        prompt,
+        settings: {
+          openAiKey,
+          openAiModel,
+          openAiBaseUrl,
+          ollamaModel,
+          ollamaBaseUrl
+        }
+      });
+      setAiEncounterResult(response.content);
+      setAiEncounterProvider(response.providerLabel);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI request failed.";
+      setAiEncounterError(message);
+    } finally {
+      setAiEncounterLoading(false);
+    }
+  };
 
   const filteredBestiary = bestiaryEntries.filter(({ summary }) => {
     if (!summary) return false;
@@ -658,56 +858,88 @@ export default function ReferencePage() {
                 <div className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
                   Encounter Inputs
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={encounterConfig.partySize}
-                    onChange={(event) =>
-                      setEncounterConfig((current) => ({
-                        ...current,
-                        partySize: Number(event.target.value)
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Party size"
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={encounterConfig.partyLevel}
-                    onChange={(event) =>
-                      setEncounterConfig((current) => ({
-                        ...current,
-                        partyLevel: Number(event.target.value)
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Party level"
-                  />
-                  <select
-                    value={encounterConfig.difficulty}
-                    onChange={(event) =>
-                      setEncounterConfig((current) => ({
-                        ...current,
-                        difficulty: event.target.value as "easy" | "medium" | "hard" | "deadly"
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                    <option value="deadly">Deadly</option>
-                  </select>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Number of player characters in the party.">
+                    Party Size
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={encounterConfig.partySize}
+                      onChange={(event) =>
+                        setEncounterConfig((current) => ({
+                          ...current,
+                          partySize: Number(event.target.value)
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 4"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Average party level used to pick CR range.">
+                    Party Level
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={encounterConfig.partyLevel}
+                      onChange={(event) =>
+                        setEncounterConfig((current) => ({
+                          ...current,
+                          partyLevel: Number(event.target.value)
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 3"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Terrain to filter encounter pool.">
+                    Location
+                    <select
+                      value={encounterConfig.location}
+                      onChange={(event) =>
+                        setEncounterConfig((current) => ({
+                          ...current,
+                          location: event.target.value
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                    >
+                      <option value="">Any terrain</option>
+                      {terrainOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Adjusts budget and CR range.">
+                    Difficulty
+                    <select
+                      value={encounterConfig.difficulty}
+                      onChange={(event) =>
+                        setEncounterConfig((current) => ({
+                          ...current,
+                          difficulty: event.target.value as "easy" | "medium" | "hard" | "deadly"
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                      <option value="deadly">Deadly</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+                  Target CR {crRange.min}-{crRange.max} · {encounterPool.length} creatures in pool
                 </div>
                 <button
                   onClick={() =>
                     setEncounterResult(
                       generateEncounter({
-                        monsters: encounterMonsters,
+                        monsters: encounterPool.map(({ id, name, cr }) => ({ id, name, cr })),
                         partySize: encounterConfig.partySize,
                         partyLevel: encounterConfig.partyLevel,
                         difficulty: encounterConfig.difficulty
@@ -718,6 +950,16 @@ export default function ReferencePage() {
                 >
                   Generate Encounter
                 </button>
+                <button
+                  onClick={handleAiEncounter}
+                  disabled={aiEncounterLoading}
+                  className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember disabled:opacity-60"
+                >
+                  {aiEncounterLoading ? "Generating..." : "Generate Encounter (AI)"}
+                </button>
+                {aiEncounterError && (
+                  <div className="text-xs font-ui text-ember">{aiEncounterError}</div>
+                )}
               </div>
               {encounterResult && (
                 <div className="rounded-3xl border border-page-edge bg-parchment/80 p-5 space-y-3">
@@ -742,6 +984,14 @@ export default function ReferencePage() {
                   </div>
                 </div>
               )}
+              {aiEncounterResult && (
+                <div className="rounded-3xl border border-page-edge bg-parchment/80 p-5 space-y-3">
+                  <div className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+                    AI Encounter {aiEncounterProvider ? `· ${aiEncounterProvider}` : ""}
+                  </div>
+                  <MarkdownPreview content={aiEncounterResult} />
+                </div>
+              )}
             </div>
           ) : slug === "loot-generator" ? (
             <div className="space-y-6">
@@ -750,33 +1000,39 @@ export default function ReferencePage() {
                   Loot Inputs
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <select
-                    value={lootConfig.mode}
-                    onChange={(event) =>
-                      setLootConfig((current) => ({
-                        ...current,
-                        mode: event.target.value as "individual" | "hoard"
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                  >
-                    <option value="individual">Individual</option>
-                    <option value="hoard">Hoard</option>
-                  </select>
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    value={lootConfig.cr}
-                    onChange={(event) =>
-                      setLootConfig((current) => ({
-                        ...current,
-                        cr: Number(event.target.value)
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="CR"
-                  />
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Individual rolls per creature or a single hoard roll.">
+                    Loot Mode
+                    <select
+                      value={lootConfig.mode}
+                      onChange={(event) =>
+                        setLootConfig((current) => ({
+                          ...current,
+                          mode: event.target.value as "individual" | "hoard"
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                    >
+                      <option value="individual">Individual</option>
+                      <option value="hoard">Hoard</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Average CR of the encounter.">
+                    Challenge Rating
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={lootConfig.cr}
+                      onChange={(event) =>
+                        setLootConfig((current) => ({
+                          ...current,
+                          cr: Number(event.target.value)
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 4"
+                    />
+                  </label>
                 </div>
                 <button
                   onClick={() =>
@@ -838,57 +1094,72 @@ export default function ReferencePage() {
                   CR Inputs
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <input
-                    type="number"
-                    value={crInputs.hp}
-                    onChange={(event) =>
-                      setCrInputs((current) => ({ ...current, hp: Number(event.target.value) }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Hit Points"
-                  />
-                  <input
-                    type="number"
-                    value={crInputs.ac}
-                    onChange={(event) =>
-                      setCrInputs((current) => ({ ...current, ac: Number(event.target.value) }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Armor Class"
-                  />
-                  <input
-                    type="number"
-                    value={crInputs.dpr}
-                    onChange={(event) =>
-                      setCrInputs((current) => ({ ...current, dpr: Number(event.target.value) }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Damage per Round"
-                  />
-                  <input
-                    type="number"
-                    value={crInputs.attack}
-                    onChange={(event) =>
-                      setCrInputs((current) => ({
-                        ...current,
-                        attack: Number(event.target.value)
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Attack Bonus"
-                  />
-                  <input
-                    type="number"
-                    value={crInputs.saveDc}
-                    onChange={(event) =>
-                      setCrInputs((current) => ({
-                        ...current,
-                        saveDc: Number(event.target.value)
-                      }))
-                    }
-                    className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
-                    placeholder="Save DC"
-                  />
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Total hit points for the creature.">
+                    Hit Points
+                    <input
+                      type="number"
+                      value={crInputs.hp}
+                      onChange={(event) =>
+                        setCrInputs((current) => ({ ...current, hp: Number(event.target.value) }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 110"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Armor class used for defensive CR.">
+                    Armor Class
+                    <input
+                      type="number"
+                      value={crInputs.ac}
+                      onChange={(event) =>
+                        setCrInputs((current) => ({ ...current, ac: Number(event.target.value) }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 15"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Average damage per round.">
+                    Damage / Round
+                    <input
+                      type="number"
+                      value={crInputs.dpr}
+                      onChange={(event) =>
+                        setCrInputs((current) => ({ ...current, dpr: Number(event.target.value) }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 20"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Attack bonus for offensive CR.">
+                    Attack Bonus
+                    <input
+                      type="number"
+                      value={crInputs.attack}
+                      onChange={(event) =>
+                        setCrInputs((current) => ({
+                          ...current,
+                          attack: Number(event.target.value)
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. +5"
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Save DC for offensive CR.">
+                    Save DC
+                    <input
+                      type="number"
+                      value={crInputs.saveDc}
+                      onChange={(event) =>
+                        setCrInputs((current) => ({
+                          ...current,
+                          saveDc: Number(event.target.value)
+                        }))
+                      }
+                      className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+                      placeholder="e.g. 13"
+                    />
+                  </label>
                 </div>
               </div>
               <div className="rounded-3xl border border-page-edge bg-parchment/80 p-5 space-y-3">
@@ -935,6 +1206,7 @@ export default function ReferencePage() {
                     return (
                       <div
                         key={entry.id}
+                        data-entry-id={entry.id}
                         className={`rounded-2xl border border-page-edge transition ${
                           isActive ? "bg-parchment/80 text-ink" : "text-ink-soft hover:text-ink"
                         }`}
@@ -1046,14 +1318,14 @@ export default function ReferencePage() {
                 })}
               </div>
             </div>
-          ) : activeReference?.content ? (
+          ) : activeReferenceDetail ? (
             <div className="mt-2">
               <div className="text-2xl font-display">{activeReference.name}</div>
               <div className="mt-1 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">
                 {activeReference.source ? `SRD • ${activeReference.source}` : "Reference"}
               </div>
               <div className="mt-6">
-                <MarkdownPreview content={activeReference.content} onOpenLink={() => undefined} />
+                <MarkdownPreview content={activeReferenceDetail} onOpenLink={() => undefined} />
               </div>
             </div>
           ) : (

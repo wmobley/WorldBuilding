@@ -1,0 +1,326 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "travel_road_d100",
+  "title": "Road Travel Encounters",
+  "selectors": {
+    "type": "table",
+    "travel": "road",
+    "encounter_type": "exploration",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        5
+      ],
+      "text": "Broken wagon blocks the road",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        6,
+        10
+      ],
+      "text": "Merchant caravan seeks escort",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Social/escort"
+    },
+    {
+      "range": [
+        11,
+        15
+      ],
+      "text": "Bandit lookout signals an ambush",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d4",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Thug",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": "SRD NPCs"
+    },
+    {
+      "range": [
+        16,
+        20
+      ],
+      "text": "Sudden storm reduces visibility",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        21,
+        25
+      ],
+      "text": "Wolf pack shadows the party",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [
+        {
+          "name": "Wolf",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        26,
+        30
+      ],
+      "text": "Toll bridge scam run by toughs",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Thug",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        31,
+        35
+      ],
+      "text": "Pilgrims ask for directions and news",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Social"
+    },
+    {
+      "range": [
+        36,
+        40
+      ],
+      "text": "Roadside shrine with minor blessing",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Exploration"
+    },
+    {
+      "range": [
+        41,
+        45
+      ],
+      "text": "Tracks lead to a hidden cache",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        46,
+        50
+      ],
+      "text": "Rival adventuring party crosses paths",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        51,
+        55
+      ],
+      "text": "Fallen tree forces detour into brush",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        56,
+        60
+      ],
+      "text": "Bandits demand a \u2018road tax\u2019",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Bandit Captain",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        61,
+        65
+      ],
+      "text": "Local militia patrol questions you",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        66,
+        70
+      ],
+      "text": "Stampede of animals across the road",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        71,
+        75
+      ],
+      "text": "Abandoned camp\u2014signs of struggle",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hook seed"
+    },
+    {
+      "range": [
+        76,
+        80
+      ],
+      "text": "Wanted posters feature someone you know",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        81,
+        85
+      ],
+      "text": "Night ambush attempt",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d4",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Wolf",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        86,
+        90
+      ],
+      "text": "Bridge out; risky crossing required",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        91,
+        95
+      ],
+      "text": "Orc raiders on the move",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Orc",
+          "count": "1d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        96,
+        99
+      ],
+      "text": "Traveling mage offers a bargain",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Social"
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "A portent marks the road ahead",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

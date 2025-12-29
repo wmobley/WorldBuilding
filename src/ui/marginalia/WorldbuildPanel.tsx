@@ -189,7 +189,10 @@ export default function WorldbuildPanel({
             </div>
             <div className="grid gap-3">
               <div>
-                <label className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft">
+                <label
+                  className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft wb-tooltip"
+                  data-tooltip="Sets the narrative flavor for worldbuild prompts."
+                >
                   Tone
                 </label>
                 <select
@@ -209,7 +212,10 @@ export default function WorldbuildPanel({
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft">
+                <label
+                  className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft wb-tooltip"
+                  data-tooltip="Choose a generator to build a prompt package."
+                >
                   Worldbuild Action
                 </label>
                 <select
@@ -268,6 +274,7 @@ export default function WorldbuildPanel({
               <div className="flex flex-wrap gap-2 text-xs font-ui uppercase tracking-[0.18em]">
                 <button
                   onClick={onClearAiChat}
+                  data-tooltip="Clear the worldbuild chat history."
                   className="rounded-full border border-page-edge px-3 py-1 text-ink-soft hover:text-ember"
                 >
                   Clear Chat
@@ -293,15 +300,21 @@ export default function WorldbuildPanel({
             </div>
             {aiError && <div className="text-xs font-ui text-ember">{aiError}</div>}
             <div className="flex flex-col gap-2">
-              <textarea
-                value={aiInput}
-                onChange={(event) => onAiInputChange(event.target.value)}
-                placeholder="Ask for world pillars, factions, regions, themes..."
-                className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-body min-h-[90px]"
-              />
+              <label
+                className="space-y-1 text-[11px] font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+                data-tooltip="Ask for beats, locations, factions, or plot threads."
+              >
+                Worldbuild Prompt
+                <textarea
+                  value={aiInput}
+                  onChange={(event) => onAiInputChange(event.target.value)}
+                  placeholder="Ask for world pillars, factions, regions, themes..."
+                  className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-body min-h-[90px]"
+                />
+              </label>
               {(linkSuggestions.length > 0 || tagSuggestions.length > 0) && (
                 <div className="rounded-xl border border-page-edge bg-parchment/70 p-2">
-                  <div className="text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft">
+                  <div className="text-[10px] font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Quick inserts from recent docs and tags.">
                     Suggestions
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -340,7 +353,7 @@ export default function WorldbuildPanel({
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft">
+              <div className="text-[11px] font-ui uppercase tracking-[0.2em] text-ink-soft wb-tooltip" data-tooltip="Select anchors to include in generated outputs.">
                 Anchors
               </div>
               {worldbuildAnchors.length === 0 ? (

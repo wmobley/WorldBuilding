@@ -27,7 +27,7 @@ type UseVaultAiChatInput = {
 
 const buildExcerpt = (body: string, limit = 360) => {
   const withoutLinks = body.replace(/\[\[([^\]]+)\]\]/g, "$1");
-  const withoutTags = withoutLinks.replace(/@[a-zA-Z]+:[\w-]+/g, "");
+  const withoutTags = withoutLinks.replace(/@[a-zA-Z_]+:[\w-]+/g, "");
   const normalized = withoutTags.replace(/\s+/g, " ").trim();
   if (normalized.length <= limit) return normalized;
   return `${normalized.slice(0, limit).trim()}...`;

@@ -1,0 +1,131 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "urban_encounters_d100",
+  "title": "Urban Encounters",
+  "selectors": {
+    "type": "table",
+    "terrain": "urban",
+    "encounter_type": "social",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        3
+      ],
+      "text": "Pickpocket attempt",
+      "encounter_type": "social",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        10,
+        12
+      ],
+      "text": "Tavern brawl",
+      "encounter_type": "social",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [
+        {
+          "name": "Commoner",
+          "count": "2d6",
+          "source": "srd",
+          "notes": "Use as brawlers"
+        },
+        {
+          "name": "Thug",
+          "count": "1d2",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": "SRD NPCs"
+    },
+    {
+      "range": [
+        16,
+        18
+      ],
+      "text": "Thieves\u2019 Guild lookout",
+      "encounter_type": "social",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        40,
+        42
+      ],
+      "text": "Guard captain seeks aid",
+      "encounter_type": "social",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        58,
+        60
+      ],
+      "text": "Assassination attempt",
+      "encounter_type": "social",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Thug",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Bandit",
+          "count": "1d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        88,
+        90
+      ],
+      "text": "Faction skirmish",
+      "encounter_type": "social",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "City power shifts",
+      "encounter_type": "social",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

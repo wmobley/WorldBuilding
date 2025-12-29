@@ -36,7 +36,10 @@ export default function NpcCreateModal({
   return (
     <Modal isOpen={isOpen} title="Create NPC" onClose={onClose}>
       <div className="space-y-2">
-        <label className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+        <label
+          className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+          data-tooltip="Name the NPC page."
+        >
           NPC name
         </label>
         <input
@@ -47,7 +50,10 @@ export default function NpcCreateModal({
         />
       </div>
       <div className="space-y-2">
-        <label className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+        <label
+          className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+          data-tooltip="Optional stat block link for this NPC."
+        >
           Base creature
         </label>
         <select

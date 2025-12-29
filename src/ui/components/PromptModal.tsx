@@ -36,7 +36,10 @@ export default function PromptModal({
 
   return (
     <Modal isOpen={isOpen} title={title} onClose={onClose}>
-      <label className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft">
+      <label
+        className="space-y-2 block text-sm font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+        data-tooltip="Provide the name or label for this item."
+      >
         <span>{label}</span>
         <input
           autoFocus

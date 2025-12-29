@@ -93,7 +93,7 @@ async function seedBestiaryIfNeeded() {
   });
 
   if (toAdd.length > 0) {
-    const { error } = await supabase.from("references").insert(
+    const { error } = await supabase.from("references").upsert(
       toAdd.map((entry) => ({
         id: entry.id,
         slug: entry.slug,
@@ -101,7 +101,8 @@ async function seedBestiaryIfNeeded() {
         source: entry.source,
         content: entry.content,
         raw_json: entry.rawJson
-      }))
+      })),
+      { onConflict: "owner_id,slug,name,source", ignoreDuplicates: true }
     );
     if (error) {
       console.error("Supabase error in seedBestiaryIfNeeded:add:", error);

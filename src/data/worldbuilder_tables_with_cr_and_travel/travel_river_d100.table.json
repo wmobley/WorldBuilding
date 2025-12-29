@@ -1,0 +1,307 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "travel_river_d100",
+  "title": "River Travel Encounters",
+  "selectors": {
+    "type": "table",
+    "travel": "river",
+    "encounter_type": "exploration",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        5
+      ],
+      "text": "Low water exposes hazards",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        6,
+        10
+      ],
+      "text": "River pirates attempt a shakedown",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "1d6",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Bandit Captain",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        11,
+        15
+      ],
+      "text": "Ferry crossing\u2014price dispute",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        16,
+        20
+      ],
+      "text": "Snags threaten to hole the boat",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        21,
+        25
+      ],
+      "text": "Crocodile lurks near reeds",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Crocodile",
+          "count": "1",
+          "source": "homebrew",
+          "notes": "Homebrew if not SRD"
+        }
+      ],
+      "needs_homebrew": true,
+      "notes": ""
+    },
+    {
+      "range": [
+        26,
+        30
+      ],
+      "text": "Local fisher offers news",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        31,
+        35
+      ],
+      "text": "Fog and echoing calls",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        36,
+        40
+      ],
+      "text": "Swarm of biting insects",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        41,
+        45
+      ],
+      "text": "River spirit demands respect",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        46,
+        50
+      ],
+      "text": "Wrecked barge\u2014loot or clue",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        51,
+        55
+      ],
+      "text": "Bandits on the bank",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        56,
+        60
+      ],
+      "text": "Rapid waters\u2014skill challenge",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        61,
+        65
+      ],
+      "text": "Hidden cave entrance",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        66,
+        70
+      ],
+      "text": "Territorial beasts defend nest",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [
+        {
+          "name": "Wolf",
+          "count": "1d4",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": "Swap to local beasts"
+    },
+    {
+      "range": [
+        71,
+        75
+      ],
+      "text": "Bridge patrol demands papers",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        76,
+        80
+      ],
+      "text": "Night attack from shore",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "1d6",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        81,
+        85
+      ],
+      "text": "Floating corpse with clue",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        86,
+        90
+      ],
+      "text": "Riverbank ruins",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        91,
+        95
+      ],
+      "text": "Flash flood incoming",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Hazard"
+    },
+    {
+      "range": [
+        96,
+        99
+      ],
+      "text": "Opportunity to shortcut",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "The river \u2018answers\u2019 a question",
+      "encounter_type": "exploration",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

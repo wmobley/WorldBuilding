@@ -1,0 +1,94 @@
+{
+  "schema": "worldbuilder.table.v1",
+  "id": "desert_encounters_d100",
+  "title": "Desert Encounters",
+  "selectors": {
+    "type": "table",
+    "terrain": "desert",
+    "encounter_type": "combat",
+    "source": "homebrew"
+  },
+  "die": "d100",
+  "entries": [
+    {
+      "range": [
+        1,
+        5
+      ],
+      "text": "Scorpion swarm",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": true,
+      "notes": "Homebrew small scorpions"
+    },
+    {
+      "range": [
+        6,
+        10
+      ],
+      "text": "Lost caravan",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        31,
+        35
+      ],
+      "text": "Bandits on mounts",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:2-4",
+      "monster_suggestions": [
+        {
+          "name": "Bandit",
+          "count": "2d6",
+          "source": "srd",
+          "notes": ""
+        },
+        {
+          "name": "Bandit Captain",
+          "count": "1",
+          "source": "srd",
+          "notes": ""
+        }
+      ],
+      "needs_homebrew": false,
+      "notes": ""
+    },
+    {
+      "range": [
+        61,
+        65
+      ],
+      "text": "Giant scorpion",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:5-10",
+      "monster_suggestions": [
+        {
+          "name": "Giant Scorpion",
+          "count": "1",
+          "source": "homebrew",
+          "notes": "Use SRD if available"
+        }
+      ],
+      "needs_homebrew": true,
+      "notes": ""
+    },
+    {
+      "range": [
+        100,
+        100
+      ],
+      "text": "Desert awakens",
+      "encounter_type": "combat",
+      "cr_bucket": "cr:0-1",
+      "monster_suggestions": [],
+      "needs_homebrew": false,
+      "notes": "Story beat"
+    }
+  ]
+}

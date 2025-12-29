@@ -22,7 +22,10 @@ describe("roadmap/05 ai enhancement layer - prompt safety and parsing", () => {
       backlinks: [],
       relatedDocsByTag: [],
       recentlyUpdatedDocs: [],
-      folderContext: { folder: null, siblings: [] }
+      folderContext: { folder: null, siblings: [] },
+      locationTaggedDocs: [],
+      docTagsById: {},
+      locationContextTags: []
     };
     const anchors: WorldbuildAnchor[] = [
       { id: "doc-2", title: "Iron Concord", type: "Faction" }

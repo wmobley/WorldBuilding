@@ -42,37 +42,58 @@ export default function CampaignPanel({
       </div>
       {!campaignPanel.collapsed && (
         <div className="mt-3 space-y-3">
-          <select
-            value={viewMode}
-            onChange={(event) =>
-              onSelectView(event.target.value as "worldview" | "timeline" | "maps")
-            }
-            id="campaign-select"
-            className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+          <label
+            htmlFor="campaign-select"
+            className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+            data-tooltip="Switch between worldview, timeline, or maps."
           >
-            <option value="worldview">Worldview</option>
-            <option value="timeline">Timeline</option>
-            <option value="maps">Maps</option>
-          </select>
+            View Mode
+            <select
+              value={viewMode}
+              onChange={(event) =>
+                onSelectView(event.target.value as "worldview" | "timeline" | "maps")
+              }
+              id="campaign-select"
+              className="w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm font-ui"
+            >
+              <option value="worldview">Worldview</option>
+              <option value="timeline">Timeline</option>
+              <option value="maps">Maps</option>
+            </select>
+          </label>
           {activeCampaign && (
             <>
-              <input
-                value={activeCampaign.name}
-                onChange={(event) =>
-                  onUpdateCampaign(activeCampaign.id, { name: event.target.value })
-                }
-                id="campaign-name"
-                className="w-full text-xl font-display bg-transparent focus:outline-none"
-              />
-              <textarea
-                value={activeCampaign.synopsis}
-                onChange={(event) =>
-                  onUpdateCampaign(activeCampaign.id, { synopsis: event.target.value })
-                }
-                placeholder="Write the campaign synopsis..."
-                id="campaign-synopsis"
-                className="w-full min-h-[120px] rounded-xl border border-page-edge bg-parchment/70 p-3 text-sm font-body"
-              />
+              <label
+                htmlFor="campaign-name"
+                className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+                data-tooltip="Name used in headers and invitations."
+              >
+                Campaign Name
+                <input
+                  value={activeCampaign.name}
+                  onChange={(event) =>
+                    onUpdateCampaign(activeCampaign.id, { name: event.target.value })
+                  }
+                  id="campaign-name"
+                  className="w-full text-xl font-display bg-transparent focus:outline-none"
+                />
+              </label>
+              <label
+                htmlFor="campaign-synopsis"
+                className="space-y-1 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+                data-tooltip="Short pitch used by worldbuild tools and players."
+              >
+                Campaign Synopsis
+                <textarea
+                  value={activeCampaign.synopsis}
+                  onChange={(event) =>
+                    onUpdateCampaign(activeCampaign.id, { synopsis: event.target.value })
+                  }
+                  placeholder="Write the campaign synopsis..."
+                  id="campaign-synopsis"
+                  className="w-full min-h-[120px] rounded-xl border border-page-edge bg-parchment/70 p-3 text-sm font-body"
+                />
+              </label>
               {onOpenSettings && (
                 <button
                   onClick={() => onOpenSettings(activeCampaign.id)}

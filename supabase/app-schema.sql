@@ -91,6 +91,7 @@ create index if not exists folders_campaign_idx on folders (campaign_id);
 create index if not exists docs_campaign_idx on docs (campaign_id);
 create index if not exists tags_doc_idx on tags (doc_id);
 create index if not exists references_slug_idx on "references" (slug);
+create unique index if not exists references_unique_idx on "references" (owner_id, slug, name, source);
 create index if not exists maps_campaign_idx on maps (campaign_id);
 create index if not exists map_locations_map_idx on map_locations (map_id);
 

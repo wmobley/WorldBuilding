@@ -117,18 +117,32 @@ const Editor = forwardRef<
         const query = before.slice(startIndex + 2);
         if (query.includes("]]")) return null;
 
+        const kindWeight = (doc: LinkOption) => {
+          if (doc.kind === "reference" && doc.slug === "bestiary") return 0;
+          if (doc.kind === "doc") return 1;
+          if (doc.kind === "reference") return 2;
+          return 3;
+        };
+
         const options: Completion[] = linkOptionsRef.current
           .map((doc) => ({
             doc,
             header: primaryHeader(doc)
           }))
           .filter((entry) => matchesTitle(entry.header, query))
+          .sort((a, b) => {
+            const weightDiff = kindWeight(a.doc) - kindWeight(b.doc);
+            if (weightDiff !== 0) return weightDiff;
+            return a.header.localeCompare(b.header);
+          })
           .slice(0, 50)
           .map((entry) => ({
             label: entry.header,
             detail:
               entry.doc.kind === "reference"
-                ? "Reference"
+                ? entry.doc.slug === "bestiary"
+                  ? "Bestiary"
+                  : "Reference"
                 : entry.doc.kind === "folder"
                 ? "Folder"
                 : entry.doc.title,

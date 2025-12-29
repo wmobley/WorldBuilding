@@ -49,9 +49,10 @@ Why it validates the issue:
 File: `src/__tests__/roadmap/04_non_ai_prep_helpers.test.ts`
 
 What it tests:
-- `buildPrepHelpers` produces encounter suggestions from creature + ecosystem tags.
+- `buildPrepHelpers` produces encounter suggestions from `creature_type` + `terrain` tags (with legacy fallbacks).
 - "Who’s involved" uses linked + backlink docs and classifies them properly.
 - "What changed recently" reports deterministic reasons in order.
+- Helper outputs include `explain`, `inputsUsed`, and `warnings` for determinism.
 
 Why it validates the issue:
 - The issue requires deterministic, explainable prep output without AI.
@@ -104,3 +105,26 @@ What it tests:
 Why it validates the issue:
 - Ensures the docs remain structured and that onboarding templates exist,
   supporting contributor and user understanding.
+
+## Priority 12: Initiative Tracker Setup
+
+File: `src/__tests__/roadmap/12_initiative_tracker_setup.test.ts`
+
+What it tests:
+- Deterministic initiative ordering with seeded rolls.
+- Tie-breaking rules (dex mod, then name).
+
+Why it validates the issue:
+- The helper must be deterministic and transparent in how it orders combatants.
+- These checks enforce the roll logic and ordering guarantees.
+
+## Priority 13: Treasure Suggestion
+
+File: `src/__tests__/roadmap/13_treasure_suggestion.test.ts`
+
+What it tests:
+- Individual loot aggregation across multiple monsters.
+- Hoard loot selection by CR with seeded determinism.
+
+Why it validates the issue:
+- The helper should produce structured treasure outputs from deterministic table rolls.

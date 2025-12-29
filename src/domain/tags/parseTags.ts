@@ -96,9 +96,17 @@ export function parseTagsFromMarkdown(markdown: string): ParsedTag[] {
     const namespace = normalizeNamespace(match[2]);
     const valueStart = (match.index ?? 0) + match[0].length;
     const nextMatch = matches[index + 1];
-    const valueEnd = nextMatch?.index ?? markdown.length;
+    const lineEnd = markdown.indexOf("\n", valueStart);
+    const valueEnd = Math.min(
+      nextMatch?.index ?? markdown.length,
+      lineEnd === -1 ? markdown.length : lineEnd
+    );
     let rawValue = markdown.slice(valueStart, valueEnd).trim();
-    if (nextMatch && /\s/.test(rawValue)) {
+    if (rawValue.startsWith("\"") || rawValue.startsWith("'")) {
+      const quote = rawValue[0];
+      const endIndex = rawValue.indexOf(quote, 1);
+      rawValue = endIndex === -1 ? rawValue.slice(1) : rawValue.slice(1, endIndex);
+    } else if (/\s/.test(rawValue)) {
       rawValue = rawValue.split(/\s+/)[0];
     }
     rawValue = rawValue.replace(/[.,;:!?]+$/g, "");

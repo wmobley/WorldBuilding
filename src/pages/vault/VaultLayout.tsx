@@ -5,7 +5,7 @@ import Sidebar from "../../ui/Sidebar";
 import PagePanel from "../../ui/PagePanel";
 import Marginalia, { type Backlink, type MapPin } from "../../ui/Marginalia";
 import TrashPanel from "../../ui/TrashPanel";
-import type { Campaign, Doc, Folder, Tag } from "../../vault/types";
+import type { Campaign, Doc, Folder, Tag, ReferenceEntry } from "../../vault/types";
 import type { WorldbuildAnchor, WorldbuildDraft, WorldbuildResult } from "../../ai/worldbuild";
 import type { TemplateOption } from "../../lib/templates";
 import type { PrepHelpers } from "../../prep/helpers";
@@ -114,7 +114,12 @@ export default function VaultLayout({
   onClearAiChat,
   chatLinkDocs,
   chatTagOptions,
-  prepHelpers
+  prepHelpers,
+  partyConfig,
+  onPartyConfigChange,
+  bestiaryReferences,
+  sinceDate,
+  onSinceDateChange
 }: {
   isTrashView: boolean;
   docs: Doc[];
@@ -226,6 +231,15 @@ export default function VaultLayout({
   chatLinkDocs: Doc[];
   chatTagOptions: Array<{ type: string; value: string }>;
   prepHelpers: PrepHelpers | null;
+  partyConfig: { size: number; level: number; difficulty: "easy" | "medium" | "hard" | "deadly" };
+  onPartyConfigChange: (next: {
+    size: number;
+    level: number;
+    difficulty: "easy" | "medium" | "hard" | "deadly";
+  }) => void;
+  bestiaryReferences: ReferenceEntry[];
+  sinceDate: string;
+  onSinceDateChange: (value: string) => void;
 }) {
   return (
     <AppShell
@@ -294,18 +308,24 @@ export default function VaultLayout({
           mode={pageMode}
           onModeChange={onModeChange}
           isDirty={isDirty}
-            lastEdited={lastEdited}
-            onDeleteDoc={onDeleteDoc}
-            onOpenFolder={onOpenFolder}
-            onOpenHome={onOpenHome}
-            onMetaClickSelection={onMetaClickSelection}
-            onShareSnippet={onShareSnippet}
-            canShareSnippet={canShareSnippet}
-            npcCreatures={npcCreatures}
-            npcCreatureId={npcCreatureId}
-            onUpdateNpcCreature={onUpdateNpcCreature}
-            showNpcTools={showNpcTools}
-          />
+          lastEdited={lastEdited}
+          onDeleteDoc={onDeleteDoc}
+          onOpenFolder={onOpenFolder}
+          onOpenHome={onOpenHome}
+          onMetaClickSelection={onMetaClickSelection}
+          onShareSnippet={onShareSnippet}
+          canShareSnippet={canShareSnippet}
+          npcCreatures={npcCreatures}
+          npcCreatureId={npcCreatureId}
+          onUpdateNpcCreature={onUpdateNpcCreature}
+          showNpcTools={showNpcTools}
+          prepHelpers={prepHelpers}
+          partyConfig={partyConfig}
+          onPartyConfigChange={onPartyConfigChange}
+          bestiaryReferences={bestiaryReferences}
+          sinceDate={sinceDate}
+          onSinceDateChange={onSinceDateChange}
+        />
         )
       }
       marginalia={
@@ -353,7 +373,6 @@ export default function VaultLayout({
             onClearAiChat={onClearAiChat}
             chatLinkDocs={chatLinkDocs}
             chatTagOptions={chatTagOptions}
-            prepHelpers={prepHelpers}
           />
         )
       }

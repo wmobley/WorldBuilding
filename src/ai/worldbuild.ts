@@ -46,7 +46,7 @@ const RECENT_LIMIT = 6;
 
 function buildExcerpt(body: string, limit = EXCERPT_LIMIT) {
   const withoutLinks = body.replace(/\[\[([^\]]+)\]\]/g, "$1");
-  const withoutTags = withoutLinks.replace(/@[a-zA-Z]+:[\w-]+/g, "");
+  const withoutTags = withoutLinks.replace(/@[a-zA-Z_]+:[\w-]+/g, "");
   const normalized = withoutTags.replace(/\s+/g, " ").trim();
   if (normalized.length <= limit) return normalized;
   return `${normalized.slice(0, limit).trim()}...`;

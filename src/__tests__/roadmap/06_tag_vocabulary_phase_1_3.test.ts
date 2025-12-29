@@ -12,7 +12,7 @@ describe("roadmap/06 tag vocabulary phase 1-3", () => {
       "  - type:NPC",
       "  - terrain:Greenwood Forest",
       "---",
-      "Meet @Status:Alive in #location:Greenwood Village."
+      "Meet @Status:Alive in #location:\"Greenwood Village\"."
     ].join("\n");
 
     const tags = parseTagsFromMarkdown(markdown).map((tag) => ({

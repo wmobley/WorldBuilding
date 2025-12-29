@@ -43,14 +43,21 @@ export default function QuickOpen({
             Close
           </button>
         </div>
-        <input
-          autoFocus
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Type a page title…"
-          id="quick-open-input"
-          className="mt-4 w-full rounded-full border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-ui"
-        />
+        <label
+          htmlFor="quick-open-input"
+          className="mt-4 block text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+          data-tooltip="Type to filter pages by title."
+        >
+          Search Pages
+          <input
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Type a page title…"
+            id="quick-open-input"
+            className="mt-2 w-full rounded-full border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-ui"
+          />
+        </label>
         <div className="mt-4 space-y-2">
           {matches.map((doc) => (
             <button
