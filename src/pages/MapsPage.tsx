@@ -8,6 +8,7 @@ import CampaignModal from "../ui/components/CampaignModal";
 import {
   createCampaign,
   createMap,
+  createMapFromStorage,
   createMapLocation,
   deleteMap,
   deleteMapLocation,
@@ -23,6 +24,12 @@ import {
 } from "../vault/queries";
 import { migrateImplicitWorld, seedCampaignIfNeeded } from "../vault/seed";
 import { isIndexDoc } from "../vault/indexing";
+import SignedStorageImage from "../ui/components/SignedStorageImage";
+import {
+  buildDocumentTitle,
+  buildMetaDescription,
+  useDocumentMeta
+} from "../lib/useDocumentMeta";
 
 async function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -30,6 +37,23 @@ async function readFileAsDataUrl(file: File) {
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(reader.error ?? new Error("Unable to read file."));
     reader.readAsDataURL(file);
+  });
+}
+
+async function readImageDimensions(file: File) {
+  return new Promise<{ width: number | null; height: number | null }>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
+      URL.revokeObjectURL(url);
+      resolve(dimensions);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: null, height: null });
+    };
+    image.src = url;
   });
 }
 
@@ -86,6 +110,11 @@ export default function MapsPage() {
     () => (maps ?? []).find((map) => map.id === selectedMapId) ?? null,
     [maps, selectedMapId]
   );
+
+  useDocumentMeta({
+    title: buildDocumentTitle(activeMap?.name ?? "Maps", activeCampaign?.name),
+    description: buildMetaDescription(activeCampaign?.synopsis ?? "Campaign maps")
+  });
 
   const locationsWithDocs = useMemo(() => {
     const docMap = new Map((docs ?? []).map((doc) => [doc.id, doc]));
@@ -170,10 +199,22 @@ export default function MapsPage() {
   const handleUploadMap = async () => {
     if (!activeCampaignId || !mapFile) return;
     try {
-      const dataUrl = await readFileAsDataUrl(mapFile);
       const name =
         mapNameDraft.trim() || mapFile.name.replace(/\.[^/.]+$/, "") || "Untitled Map";
-      const map = await createMap(name, dataUrl, activeCampaignId);
+      let map;
+      try {
+        const dimensions = await readImageDimensions(mapFile);
+        map = await createMapFromStorage(
+          name,
+          mapFile,
+          activeCampaignId,
+          dimensions.width,
+          dimensions.height
+        );
+      } catch {
+        const dataUrl = await readFileAsDataUrl(mapFile);
+        map = await createMap(name, dataUrl, activeCampaignId);
+      }
       setSelectedMapId(map.id);
       setMapFile(null);
       setMapNameDraft("");
@@ -347,10 +388,11 @@ export default function MapsPage() {
                   >
                     {activeMap ? (
                       <>
-                        <img
-                          src={activeMap.imageDataUrl}
+                        <SignedStorageImage
+                          storagePath={activeMap.imageStoragePath}
+                          fallbackSrc={activeMap.imageDataUrl}
                           alt={activeMap.name}
-                          className="block w-full h-auto"
+                          className="block h-auto w-full"
                         />
                         {(locationsWithDocs ?? []).map((location) => (
                           <button

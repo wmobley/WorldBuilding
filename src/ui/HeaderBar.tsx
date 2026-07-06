@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { Campaign, Doc } from "../vault/types";
 import { dmItems, referenceShelf } from "../lib/referenceData";
 import { useAuth } from "../auth/AuthGate";
+import { searchVaultDocs } from "../features/vaultSearch/searchVault";
 
 export default function HeaderBar({
   docs,
@@ -53,9 +54,7 @@ export default function HeaderBar({
   }, [openMenu, profileOpen]);
 
   const matches = useMemo(() => {
-    if (!query.trim()) return [] as Doc[];
-    const lower = query.toLowerCase();
-    return docs.filter((doc) => doc.title.toLowerCase().includes(lower)).slice(0, 6);
+    return searchVaultDocs(docs, query, 8);
   }, [docs, query]);
 
   return (
@@ -185,13 +184,13 @@ export default function HeaderBar({
           <label
             htmlFor="header-search"
             className="wb-tooltip wb-tooltip--down"
-            data-tooltip="Search page titles in this world."
+            data-tooltip="Search page titles and body text in this world."
           >
             <span className="sr-only">Search pages</span>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search the vault by title…"
+              placeholder="Search the vault..."
               id="header-search"
               aria-label="Search pages"
               className="w-64 rounded-full border border-page-edge bg-parchment/80 px-4 py-2 text-sm font-ui shadow-page"
@@ -199,17 +198,25 @@ export default function HeaderBar({
           </label>
           {matches.length > 0 && (
             <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-page-edge bg-parchment/95 shadow-page z-10">
-              {matches.map((doc) => (
+              {matches.map((result) => (
                 <button
-                  key={doc.id}
+                  key={result.doc.id}
                   onClick={() => {
-                    onOpenDoc(doc.id);
+                    onOpenDoc(result.doc.id);
                     setQuery("");
                   }}
-                  className="block w-full px-4 py-2 text-left text-sm hover:bg-parchment/70 wb-tooltip"
-                  data-tooltip={`Open ${doc.title}`}
+                  className="block w-full px-4 py-2 text-left hover:bg-parchment/70 wb-tooltip"
+                  data-tooltip={`Open ${result.doc.title}`}
                 >
-                  {doc.title}
+                  <div className="text-sm text-ink">{result.doc.title}</div>
+                  <div className="mt-1 text-[10px] font-ui uppercase tracking-[0.16em] text-ink-soft">
+                    {result.matchType === "title" ? "Title match" : "Body match"}
+                  </div>
+                  {result.snippet && (
+                    <div className="mt-1 max-h-8 overflow-hidden text-xs text-ink-soft">
+                      {result.snippet}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>

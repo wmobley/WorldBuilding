@@ -113,6 +113,9 @@ export type WorldMap = {
   campaignId: string;
   name: string;
   imageDataUrl: string;
+  imageStoragePath?: string | null;
+  width?: number | null;
+  height?: number | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -133,4 +136,30 @@ export type SessionNotes = {
   content: string;
   createdAt: number;
   updatedAt: number;
+};
+
+export type PageTemplate = {
+  id: string;
+  campaignId: string;
+  name: string;
+  description: string;
+  kind: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+  ownerId?: string;
+};
+
+export type Asset = {
+  id: string;
+  campaignId: string;
+  docId: string | null;
+  storagePath: string;
+  filename: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  altText?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  ownerId?: string;
 };

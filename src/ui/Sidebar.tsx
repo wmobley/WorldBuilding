@@ -20,6 +20,7 @@ export default function Sidebar({
   onCreateDoc,
   templates,
   onCreateDocFromTemplate,
+  onManageTemplates,
   activeFolderId,
   onOpenTrash,
   trashedCount
@@ -35,6 +36,7 @@ export default function Sidebar({
   onCreateDoc: (folderId: string | null) => void;
   templates: TemplateOption[];
   onCreateDocFromTemplate: (template: TemplateOption, folderId: string | null) => void;
+  onManageTemplates: () => void;
   activeFolderId: string | null;
   onOpenTrash: () => void;
   trashedCount: number;
@@ -92,6 +94,16 @@ export default function Sidebar({
       });
   const orderedDocsForFolder = (folderId: string | null) =>
     sortDocs(docMap.get(folderId) ?? []).filter((doc) => !isIndexDoc(doc));
+
+  useEffect(() => {
+    if (templates.length === 0) {
+      setSelectedTemplateId("");
+      return;
+    }
+    if (!templates.some((template) => template.id === selectedTemplateId)) {
+      setSelectedTemplateId(templates[0]?.id ?? "");
+    }
+  }, [selectedTemplateId, templates]);
 
   useEffect(() => {
     if (!openFolderMenuId) return;
@@ -373,9 +385,29 @@ export default function Sidebar({
         {!sidebarPanel.collapsed && (
           <div className="mt-3 space-y-4">
         {templates.length > 0 && (
-          <div id="sidebar-templates" className="space-y-2">
-            <div className="font-ui text-sm uppercase tracking-[0.18em] text-ink-soft wb-tooltip" data-tooltip="Create a new page using a template.">
-              New Page From Template
+          <div
+            id="sidebar-templates"
+            className="space-y-3 rounded-2xl border border-ember/20 bg-ember/5 p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div
+                  className="font-ui text-sm uppercase tracking-[0.18em] text-ember wb-tooltip"
+                  data-tooltip="Create a new page using a bundled or campaign template."
+                >
+                  Templates
+                </div>
+                <div className="mt-1 text-xs text-ink-soft">
+                  {templates.length} available for this world
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onManageTemplates}
+                className="rounded-full border border-page-edge bg-parchment/80 px-3 py-1.5 text-[10px] font-ui uppercase tracking-[0.16em] text-ink-soft hover:text-ember"
+              >
+                Manage
+              </button>
             </div>
             <div className="flex flex-col gap-2 md:flex-row">
               <label
@@ -409,6 +441,17 @@ export default function Sidebar({
                 Create
               </button>
             </div>
+            <button
+              onClick={() => {
+                if (!selectedTemplate) return;
+                onCreateDocFromTemplate(selectedTemplate, activeFolderId);
+              }}
+              id="template-create-secondary"
+              className="w-full rounded-xl border border-ember/30 bg-parchment/80 px-3 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ember hover:bg-ember/10 wb-tooltip"
+              data-tooltip={`Create ${selectedTemplate?.label ?? "template"} page`}
+            >
+              Create From Template
+            </button>
           </div>
         )}
         <div id="sidebar-folders" className="space-y-4">

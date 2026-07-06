@@ -12,6 +12,7 @@ import {
   listDocsWithTag,
   listFolders,
   listMapLocationsByDoc,
+  listMapLocationsForCampaign,
   listMaps,
   listReferencesBySlug,
   listReferencesBySlugs,
@@ -169,6 +170,16 @@ export default function useVaultData({
     { tables: ["map_locations", "maps"] }
   );
 
+  const mapLocations = useSupabaseQuery(
+    async () => {
+      if (!activeCampaignId) return [];
+      return listMapLocationsForCampaign(activeCampaignId);
+    },
+    [activeCampaignId],
+    [],
+    { tables: ["map_locations", "maps"] }
+  );
+
   const npcProfile = useSupabaseQuery(
     async () => {
       if (!currentDoc) return null;
@@ -269,6 +280,7 @@ export default function useVaultData({
     references,
     bestiaryReferences,
     mapPins,
+    mapLocations,
     npcProfile,
     backlinks,
     tags,

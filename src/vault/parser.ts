@@ -17,6 +17,9 @@ export function parseLinks(markdown: string): ParsedLink[] {
   const links: ParsedLink[] = [];
   let match: RegExpExecArray | null = null;
   while ((match = linkRegex.exec(markdown))) {
+    if ((match.index ?? 0) > 0 && markdown[(match.index ?? 0) - 1] === "!") {
+      continue;
+    }
     const targetTitle = match[1].trim();
     if (!targetTitle) continue;
     const docId = targetTitle.startsWith("doc:") ? targetTitle.slice(4).trim() : undefined;

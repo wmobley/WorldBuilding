@@ -274,7 +274,7 @@ export default function SessionPage() {
           day: "numeric"
         });
         const block = `\n\n## AI Notes — ${dateLabel}\n\n${response.content.trim()}\n`;
-        setNotesDraft((current) => `${current.trimEnd()}${block}`);
+        setNotesDraft(`${notesDraft.trimEnd()}${block}`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI request failed.";

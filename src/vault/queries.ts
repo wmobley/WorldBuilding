@@ -8,16 +8,20 @@ import type {
   Folder,
   MapLocation,
   NpcProfile,
+  PageTemplate,
   DmScreenCard,
   ReferenceEntry,
   SharedSnippet,
   SessionNotes,
   Tag,
-  WorldMap
+  WorldMap,
+  Asset
 } from "./types";
 import { createId } from "../lib/id";
 import { parseLinks, parseTags } from "./parser";
 import { INDEX_END, INDEX_START, isIndexDoc } from "./indexing";
+import { replaceWikiLinkTarget } from "../domain/markdown/pageModel";
+import { ASSET_BUCKET, buildAssetStoragePath, buildMapStoragePath } from "./assets";
 
 const logSupabaseError = (context: string, error: unknown) => {
   if (error) {
@@ -104,7 +108,10 @@ const mapWorldMap = (row: any): WorldMap => ({
   id: row.id,
   campaignId: row.campaign_id,
   name: row.name,
-  imageDataUrl: row.image_data_url,
+  imageDataUrl: row.image_data_url ?? "",
+  imageStoragePath: row.image_storage_path ?? null,
+  width: row.width ?? null,
+  height: row.height ?? null,
   createdAt: Number(row.created_at),
   updatedAt: Number(row.updated_at)
 });
@@ -155,6 +162,32 @@ const mapSharedSnippet = (row: any): SharedSnippet => ({
   startOffset: row.start_offset ?? null,
   endOffset: row.end_offset ?? null,
   createdAt: Number(row.created_at)
+});
+
+const mapPageTemplate = (row: any): PageTemplate => ({
+  id: row.id,
+  campaignId: row.campaign_id,
+  name: row.name,
+  description: row.description ?? "",
+  kind: row.kind ?? "",
+  body: row.body ?? "",
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at),
+  ownerId: row.owner_id ?? undefined
+});
+
+const mapAsset = (row: any): Asset => ({
+  id: row.id,
+  campaignId: row.campaign_id,
+  docId: row.doc_id ?? null,
+  storagePath: row.storage_path,
+  filename: row.filename,
+  contentType: row.content_type ?? null,
+  sizeBytes: row.size_bytes ?? null,
+  altText: row.alt_text ?? null,
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at),
+  ownerId: row.owner_id ?? undefined
 });
 
 export async function listFolders(campaignId: string) {
@@ -353,6 +386,31 @@ export async function renameDoc(docId: string, title: string) {
     .update({ title: title || "Untitled Page" })
     .eq("id", docId);
   logSupabaseError("renameDoc", error);
+}
+
+export async function renameDocAndUpdateLinks(
+  docId: string,
+  previousTitle: string,
+  nextTitle: string
+) {
+  const trimmedTitle = nextTitle.trim() || "Untitled Page";
+  await renameDoc(docId, trimmedTitle);
+  if (!previousTitle.trim() || previousTitle.trim() === trimmedTitle) return;
+
+  const doc = await getDocById(docId);
+  if (!doc) return;
+  const docs = await listDocs(doc.campaignId);
+  const updates = docs
+    .filter((entry) => entry.id !== docId)
+    .map((entry) => ({
+      doc: entry,
+      body: replaceWikiLinkTarget(entry.body, previousTitle, trimmedTitle)
+    }))
+    .filter((entry) => entry.body !== entry.doc.body);
+
+  for (const update of updates) {
+    await saveDocContent(update.doc.id, update.body);
+  }
 }
 
 export async function setDocShared(docId: string, shared: boolean) {
@@ -665,6 +723,196 @@ export async function setSetting(key: string, value: string) {
     .from("settings")
     .upsert({ key, value }, { onConflict: "owner_id,key" });
   logSupabaseError("setSetting", error);
+}
+
+export async function listTemplates(campaignId: string) {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("name", { ascending: true });
+  logSupabaseError("listTemplates", error);
+  return (data ?? []).map(mapPageTemplate);
+}
+
+export async function createTemplate(
+  campaignId: string,
+  input: Pick<PageTemplate, "name" | "description" | "kind" | "body">
+) {
+  const now = Date.now();
+  const template: PageTemplate = {
+    id: createId(),
+    campaignId,
+    name: input.name.trim() || "Untitled Template",
+    description: input.description.trim(),
+    kind: input.kind.trim(),
+    body: input.body,
+    createdAt: now,
+    updatedAt: now
+  };
+  const { error } = await supabase.from("templates").insert({
+    id: template.id,
+    campaign_id: template.campaignId,
+    name: template.name,
+    description: template.description,
+    kind: template.kind,
+    body: template.body,
+    created_at: template.createdAt,
+    updated_at: template.updatedAt
+  });
+  logSupabaseError("createTemplate", error);
+  return template;
+}
+
+export async function updateTemplate(
+  templateId: string,
+  updates: Partial<Pick<PageTemplate, "name" | "description" | "kind" | "body">>
+) {
+  const { error } = await supabase
+    .from("templates")
+    .update({
+      name: updates.name,
+      description: updates.description,
+      kind: updates.kind,
+      body: updates.body,
+      updated_at: Date.now()
+    })
+    .eq("id", templateId);
+  logSupabaseError("updateTemplate", error);
+}
+
+export async function deleteTemplate(templateId: string) {
+  const { error } = await supabase.from("templates").delete().eq("id", templateId);
+  logSupabaseError("deleteTemplate", error);
+}
+
+export async function listAssets(campaignId: string) {
+  const { data, error } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("created_at", { ascending: false });
+  logSupabaseError("listAssets", error);
+  return (data ?? []).map(mapAsset);
+}
+
+export async function uploadAsset(
+  campaignId: string,
+  docId: string | null,
+  file: File,
+  altText = ""
+) {
+  const now = Date.now();
+  const assetId = createId();
+  const storagePath = buildAssetStoragePath(campaignId, assetId, file.name);
+  const { error: uploadError } = await supabase.storage
+    .from(ASSET_BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type || undefined,
+      upsert: false
+    });
+  logSupabaseError("uploadAsset:storage", uploadError);
+  if (uploadError) throw uploadError;
+
+  const asset: Asset = {
+    id: assetId,
+    campaignId,
+    docId,
+    storagePath,
+    filename: file.name || "asset",
+    contentType: file.type || null,
+    sizeBytes: file.size,
+    altText: altText.trim() || null,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const { error: insertError } = await supabase.from("assets").insert({
+    id: asset.id,
+    campaign_id: asset.campaignId,
+    doc_id: asset.docId,
+    storage_path: asset.storagePath,
+    filename: asset.filename,
+    content_type: asset.contentType,
+    size_bytes: asset.sizeBytes,
+    alt_text: asset.altText,
+    created_at: asset.createdAt,
+    updated_at: asset.updatedAt
+  });
+  logSupabaseError("uploadAsset:metadata", insertError);
+  if (insertError) {
+    await supabase.storage.from(ASSET_BUCKET).remove([storagePath]);
+    throw insertError;
+  }
+
+  return asset;
+}
+
+export async function updateAssetMetadata(
+  assetId: string,
+  updates: { filename?: string; altText?: string | null }
+) {
+  const payload: Record<string, string | number | null | undefined> = {
+    updated_at: Date.now()
+  };
+  if (updates.filename !== undefined) {
+    payload.filename = updates.filename.trim() || "asset";
+  }
+  if (updates.altText !== undefined) {
+    payload.alt_text = updates.altText?.trim() || null;
+  }
+
+  const { error } = await supabase.from("assets").update(payload).eq("id", assetId);
+  logSupabaseError("updateAssetMetadata", error);
+  if (error) throw error;
+}
+
+export async function replaceAssetFile(asset: Asset, file: File) {
+  const now = Date.now();
+  const nextStoragePath = buildAssetStoragePath(asset.campaignId, asset.id, file.name);
+  const { error: uploadError } = await supabase.storage
+    .from(ASSET_BUCKET)
+    .upload(nextStoragePath, file, {
+      cacheControl: "3600",
+      contentType: file.type || undefined,
+      upsert: true
+    });
+  logSupabaseError("replaceAssetFile:storage", uploadError);
+  if (uploadError) throw uploadError;
+
+  const { error: updateError } = await supabase
+    .from("assets")
+    .update({
+      storage_path: nextStoragePath,
+      filename: file.name || asset.filename,
+      content_type: file.type || asset.contentType,
+      size_bytes: file.size,
+      updated_at: now
+    })
+    .eq("id", asset.id);
+  logSupabaseError("replaceAssetFile:metadata", updateError);
+  if (updateError) {
+    if (nextStoragePath !== asset.storagePath) {
+      await supabase.storage.from(ASSET_BUCKET).remove([nextStoragePath]);
+    }
+    throw updateError;
+  }
+
+  if (nextStoragePath !== asset.storagePath) {
+    await supabase.storage.from(ASSET_BUCKET).remove([asset.storagePath]);
+  }
+}
+
+export async function deleteAsset(asset: Asset) {
+  const { error: storageError } = await supabase.storage
+    .from(ASSET_BUCKET)
+    .remove([asset.storagePath]);
+  logSupabaseError("deleteAsset:storage", storageError);
+  const { error: rowError } = await supabase.from("assets").delete().eq("id", asset.id);
+  logSupabaseError("deleteAsset:metadata", rowError);
+  if (storageError) throw storageError;
+  if (rowError) throw rowError;
 }
 
 export async function getSessionNotes(roomId: string) {
@@ -1239,12 +1487,65 @@ export async function createMap(name: string, imageDataUrl: string, campaignId: 
   return map;
 }
 
+export async function createMapFromStorage(
+  name: string,
+  file: File,
+  campaignId: string,
+  width?: number | null,
+  height?: number | null
+) {
+  const now = Date.now();
+  const mapId = createId();
+  const storagePath = buildMapStoragePath(campaignId, mapId, file.name);
+  const { error: uploadError } = await supabase.storage
+    .from(ASSET_BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type || undefined,
+      upsert: false
+    });
+  logSupabaseError("createMapFromStorage:storage", uploadError);
+  if (uploadError) throw uploadError;
+
+  const map: WorldMap = {
+    id: mapId,
+    campaignId,
+    name: name || "Untitled Map",
+    imageDataUrl: "",
+    imageStoragePath: storagePath,
+    width: width ?? null,
+    height: height ?? null,
+    createdAt: now,
+    updatedAt: now
+  };
+  const { error } = await supabase.from("maps").insert({
+    id: map.id,
+    campaign_id: map.campaignId,
+    name: map.name,
+    image_data_url: "",
+    image_storage_path: map.imageStoragePath,
+    width: map.width,
+    height: map.height,
+    created_at: map.createdAt,
+    updated_at: map.updatedAt
+  });
+  logSupabaseError("createMapFromStorage", error);
+  if (error) {
+    await supabase.storage.from(ASSET_BUCKET).remove([storagePath]);
+    throw error;
+  }
+  return map;
+}
+
 export async function updateMap(mapId: string, updates: Partial<WorldMap>) {
   const { error } = await supabase
     .from("maps")
     .update({
       name: updates.name,
       image_data_url: updates.imageDataUrl,
+      image_storage_path: updates.imageStoragePath,
+      width: updates.width,
+      height: updates.height,
       updated_at: Date.now()
     })
     .eq("id", mapId);
@@ -1252,6 +1553,12 @@ export async function updateMap(mapId: string, updates: Partial<WorldMap>) {
 }
 
 export async function deleteMap(mapId: string) {
+  const { data: mapData, error: mapLoadError } = await supabase
+    .from("maps")
+    .select("*")
+    .eq("id", mapId)
+    .maybeSingle();
+  logSupabaseError("deleteMap:load", mapLoadError);
   const { error: locationError } = await supabase
     .from("map_locations")
     .delete()
@@ -1259,6 +1566,9 @@ export async function deleteMap(mapId: string) {
   logSupabaseError("deleteMap:locations", locationError);
   const { error } = await supabase.from("maps").delete().eq("id", mapId);
   logSupabaseError("deleteMap", error);
+  if (!error && mapData?.image_storage_path) {
+    await supabase.storage.from(ASSET_BUCKET).remove([mapData.image_storage_path]);
+  }
 }
 
 export async function listMapLocations(mapId: string) {
@@ -1267,6 +1577,18 @@ export async function listMapLocations(mapId: string) {
     .select("*")
     .eq("map_id", mapId);
   logSupabaseError("listMapLocations", error);
+  return (data ?? []).map(mapMapLocation);
+}
+
+export async function listMapLocationsForCampaign(campaignId: string) {
+  const maps = await listMaps(campaignId);
+  const mapIds = maps.map((map) => map.id);
+  if (mapIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("map_locations")
+    .select("*")
+    .in("map_id", mapIds);
+  logSupabaseError("listMapLocationsForCampaign", error);
   return (data ?? []).map(mapMapLocation);
 }
 

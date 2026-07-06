@@ -5,10 +5,12 @@ import Sidebar from "../../ui/Sidebar";
 import PagePanel from "../../ui/PagePanel";
 import Marginalia, { type Backlink, type MapPin } from "../../ui/Marginalia";
 import TrashPanel from "../../ui/TrashPanel";
-import type { Campaign, Doc, Folder, Tag, ReferenceEntry } from "../../vault/types";
+import AuthoringCommandBar from "../../ui/AuthoringCommandBar";
+import type { Asset, Campaign, Doc, Folder, Tag, ReferenceEntry } from "../../vault/types";
 import type { WorldbuildAnchor, WorldbuildDraft, WorldbuildResult } from "../../ai/worldbuild";
 import type { TemplateOption } from "../../lib/templates";
 import type { PrepHelpers } from "../../prep/helpers";
+import type { VaultDiagnosticsReport } from "../../features/vaultDiagnostics/buildVaultDiagnostics";
 
 type LinkOption = {
   id: string;
@@ -41,6 +43,7 @@ export default function VaultLayout({
   onCreateDoc,
   templates,
   onCreateDocFromTemplate,
+  onManageTemplates,
   activeFolderId,
   onOpenTrash,
   trashedCount,
@@ -54,8 +57,10 @@ export default function VaultLayout({
   pageMode,
   onModeChange,
   isDirty,
+  saveStatus,
   lastEdited,
   onTitleChange,
+  onTitleCommit,
   onFolderChange,
   onBodyChange,
   onOpenLink,
@@ -63,6 +68,14 @@ export default function VaultLayout({
   onCursorLink,
   linkOptions,
   tagOptions,
+  assets,
+  onUploadAsset,
+  onUpdateAsset,
+  onReplaceAsset,
+  onDeleteAsset,
+  renamePreview,
+  onConfirmRename,
+  onCancelRename,
   onDeleteDoc,
   onOpenFolder,
   onOpenHome,
@@ -82,6 +95,7 @@ export default function VaultLayout({
   onClearFilter,
   linkPreview,
   mapPins,
+  diagnosticsReport,
   onOpenMaps,
   npcCreature,
   worldbuildAnchors,
@@ -143,6 +157,7 @@ export default function VaultLayout({
   onCreateDoc: (folderId: string | null) => void;
   templates: TemplateOption[];
   onCreateDocFromTemplate: (template: TemplateOption, folderId: string | null) => void;
+  onManageTemplates: () => void;
   activeFolderId: string | null;
   onOpenTrash: () => void;
   trashedCount: number;
@@ -153,11 +168,13 @@ export default function VaultLayout({
   onPurgeDoc: (docId: string) => void;
   onPurgeFolder: (folderId: string) => void;
   displayDoc: Doc | null;
-  pageMode: "edit" | "preview";
-  onModeChange: (mode: "edit" | "preview") => void;
+  pageMode: "edit" | "preview" | "split";
+  onModeChange: (mode: "edit" | "preview" | "split") => void;
   isDirty: boolean;
+  saveStatus: "saved" | "unsaved" | "saving" | "error";
   lastEdited: number | null;
   onTitleChange: (title: string) => void;
+  onTitleCommit: () => void;
   onFolderChange: (folderId: string | null) => void;
   onBodyChange: (body: string) => void;
   onOpenLink: (target: string) => void;
@@ -165,6 +182,22 @@ export default function VaultLayout({
   onCursorLink: (target: string | null) => void;
   linkOptions: LinkOption[];
   tagOptions: Array<{ type: string; value: string }>;
+  assets: Asset[];
+  onUploadAsset: (file: File, altText: string) => Promise<void>;
+  onUpdateAsset: (
+    asset: Asset,
+    updates: { filename?: string; altText?: string | null }
+  ) => Promise<void>;
+  onReplaceAsset: (asset: Asset, file: File) => Promise<void>;
+  onDeleteAsset: (asset: Asset) => Promise<void>;
+  renamePreview: {
+    docId: string;
+    fromTitle: string;
+    toTitle: string;
+    linkCount: number;
+  } | null;
+  onConfirmRename: () => void;
+  onCancelRename: () => void;
   onDeleteDoc: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenHome: () => void;
@@ -187,6 +220,7 @@ export default function VaultLayout({
     | { type: "reference"; data: { id: string; name: string; content: string; slug: string } }
     | null;
   mapPins: MapPin[];
+  diagnosticsReport: VaultDiagnosticsReport;
   onOpenMaps: () => void;
   npcCreature: { name: string; rawJson?: string } | null;
   worldbuildAnchors: WorldbuildAnchor[];
@@ -277,6 +311,7 @@ export default function VaultLayout({
             onCreateDoc={onCreateDoc}
             templates={templates}
             onCreateDocFromTemplate={onCreateDocFromTemplate}
+            onManageTemplates={onManageTemplates}
             activeFolderId={activeFolderId}
             onOpenTrash={onOpenTrash}
             trashedCount={trashedCount}
@@ -294,38 +329,72 @@ export default function VaultLayout({
             onPurgeFolder={onPurgeFolder}
           />
         ) : (
-        <PagePanel
-          doc={displayDoc}
-          folders={folders}
-          onTitleChange={onTitleChange}
-          onFolderChange={onFolderChange}
-          onBodyChange={onBodyChange}
-          onOpenLink={onOpenLink}
-          onPreviewDoc={onPreviewDoc}
-          onCursorLink={onCursorLink}
-          linkOptions={linkOptions}
-          tagOptions={tagOptions}
-          mode={pageMode}
-          onModeChange={onModeChange}
-          isDirty={isDirty}
-          lastEdited={lastEdited}
-          onDeleteDoc={onDeleteDoc}
-          onOpenFolder={onOpenFolder}
-          onOpenHome={onOpenHome}
-          onMetaClickSelection={onMetaClickSelection}
-          onShareSnippet={onShareSnippet}
-          canShareSnippet={canShareSnippet}
-          npcCreatures={npcCreatures}
-          npcCreatureId={npcCreatureId}
-          onUpdateNpcCreature={onUpdateNpcCreature}
-          showNpcTools={showNpcTools}
-          prepHelpers={prepHelpers}
-          partyConfig={partyConfig}
-          onPartyConfigChange={onPartyConfigChange}
-          bestiaryReferences={bestiaryReferences}
-          sinceDate={sinceDate}
-          onSinceDateChange={onSinceDateChange}
-        />
+          <div className="space-y-4">
+            <AuthoringCommandBar
+              mode={pageMode}
+              onModeChange={onModeChange}
+              diagnosticsReport={diagnosticsReport}
+              templateCount={templates.length}
+              assetCount={assets.length}
+              onManageTemplates={onManageTemplates}
+              onFocusMedia={() => {
+                if (typeof document === "undefined") return;
+                document
+                  .getElementById("page-media-library")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              onFocusDiagnostics={() => {
+                if (typeof document === "undefined") return;
+                document
+                  .getElementById("marginalia-diagnostics")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+            <PagePanel
+              doc={displayDoc}
+              allDocs={docs}
+              folders={folders}
+              onTitleChange={onTitleChange}
+              onTitleCommit={onTitleCommit}
+              onFolderChange={onFolderChange}
+              onBodyChange={onBodyChange}
+              onOpenLink={onOpenLink}
+              onPreviewDoc={onPreviewDoc}
+              onCursorLink={onCursorLink}
+              linkOptions={linkOptions}
+              tagOptions={tagOptions}
+              assets={assets}
+              onUploadAsset={onUploadAsset}
+              onUpdateAsset={onUpdateAsset}
+              onReplaceAsset={onReplaceAsset}
+              onDeleteAsset={onDeleteAsset}
+              renamePreview={renamePreview}
+              onConfirmRename={onConfirmRename}
+              onCancelRename={onCancelRename}
+              mode={pageMode}
+              onModeChange={onModeChange}
+              isDirty={isDirty}
+              saveStatus={saveStatus}
+              lastEdited={lastEdited}
+              onDeleteDoc={onDeleteDoc}
+              onOpenFolder={onOpenFolder}
+              onOpenHome={onOpenHome}
+              onOpenDoc={onOpenDoc}
+              onMetaClickSelection={onMetaClickSelection}
+              onShareSnippet={onShareSnippet}
+              canShareSnippet={canShareSnippet}
+              npcCreatures={npcCreatures}
+              npcCreatureId={npcCreatureId}
+              onUpdateNpcCreature={onUpdateNpcCreature}
+              showNpcTools={showNpcTools}
+              prepHelpers={prepHelpers}
+              partyConfig={partyConfig}
+              onPartyConfigChange={onPartyConfigChange}
+              bestiaryReferences={bestiaryReferences}
+              sinceDate={sinceDate}
+              onSinceDateChange={onSinceDateChange}
+            />
+          </div>
         )
       }
       marginalia={
@@ -341,6 +410,7 @@ export default function VaultLayout({
             onClearFilter={onClearFilter}
             linkPreview={linkPreview}
             mapPins={mapPins}
+            diagnosticsReport={diagnosticsReport}
             onOpenMaps={onOpenMaps}
             npcCreature={npcCreature}
             worldbuildAnchors={worldbuildAnchors}

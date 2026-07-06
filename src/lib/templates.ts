@@ -28,6 +28,10 @@ export type TemplateOption = {
   id: string;
   label: string;
   content: string;
+  description?: string;
+  kind?: string;
+  source?: "bundled" | "user";
+  campaignId?: string;
 };
 
 export const templates: TemplateOption[] = [

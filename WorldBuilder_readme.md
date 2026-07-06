@@ -213,7 +213,10 @@ The interface is intentionally styled as:
 
 ## Data & Imports
 
-- **Local-first storage:** all data lives in the browser (IndexedDB).
+- **Supabase-backed storage:** campaigns, pages, folders, graph edges, tags, references, sharing, maps, templates, assets, and session notes are stored in Supabase.
+- **Authoring:** pages use Markdown with wikilinks, frontmatter infoboxes, heading anchors, safe spoiler/DM-only and worldbuilding component blocks, page inserts, Storage media embeds, and galleries.
+- **Templates:** bundled templates are included, and campaign-scoped user templates can be created, edited, duplicated, deleted, and applied in the app.
+- **Diagnostics:** the vault reports broken links, broken section anchors, duplicate titles, malformed frontmatter, invalid tags, orphan pages, unresolved embeds/galleries, broken inserts, import parse errors, and missing map pins.
 - **Imports:** Foundry JSON/DB, 5e.tools JSON, and zip bundles are supported.
 - **Exports:** Foundry- and Roll20-friendly JSON exports are available in Settings.
 

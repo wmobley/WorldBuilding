@@ -22,7 +22,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sent" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "sent" | "error" | "dev-error">("idle");
+
+  const devLoginEnabled =
+    import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === "true";
 
   useEffect(() => {
     let mounted = true;
@@ -54,6 +57,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setStatus(error ? "error" : "sent");
   };
 
+  const handleDevLogin = async () => {
+    const { error } = await supabase.auth.signInAnonymously();
+    setStatus(error ? "dev-error" : "idle");
+  };
+
   const contextValue = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -81,6 +89,21 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <p className="text-sm font-ui text-ink-soft">
             Sign in with a magic link to access your world vault.
           </p>
+          {devLoginEnabled && (
+            <button
+              onClick={() => handleDevLogin().catch(() => setStatus("dev-error"))}
+              className="w-full rounded-xl border border-ember/40 bg-ember/10 px-4 py-2 text-xs font-ui uppercase tracking-[0.2em] text-ember hover:bg-ember/15"
+            >
+              Continue as Dev User
+            </button>
+          )}
+          {devLoginEnabled && (
+            <div className="flex items-center gap-3 text-[10px] font-ui uppercase tracking-[0.2em] text-ink-faint">
+              <div className="h-px flex-1 bg-page-edge" />
+              <span>or</span>
+              <div className="h-px flex-1 bg-page-edge" />
+            </div>
+          )}
           <input
             type="email"
             value={email}
@@ -102,6 +125,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           {status === "error" && (
             <div className="text-xs font-ui text-ember">
               Could not send link. Check your email and try again.
+            </div>
+          )}
+          {status === "dev-error" && (
+            <div className="text-xs font-ui text-ember">
+              Could not start a dev session. Check local Supabase anonymous auth.
             </div>
           )}
         </div>

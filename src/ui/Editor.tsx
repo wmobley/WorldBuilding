@@ -13,6 +13,7 @@ import { tagVocabulary } from "../domain/tags/vocabulary";
 
 export type EditorHandle = {
   wrapSelection: (prefix: string, suffix: string) => void;
+  insertText: (text: string) => void;
   openLinkMenu: () => void;
   prefixLines: (prefix: string) => void;
   wrapBlock: (prefix: string, suffix: string) => void;
@@ -487,6 +488,17 @@ const Editor = forwardRef<
       view.focus();
     };
 
+    const insertText = (text: string) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const { from, to } = view.state.selection.main;
+      view.dispatch({
+        changes: { from, to, insert: text },
+        selection: { anchor: from + text.length }
+      });
+      view.focus();
+    };
+
     const prefixLines = (prefix: string) => {
       const view = viewRef.current;
       if (!view) return;
@@ -524,6 +536,7 @@ const Editor = forwardRef<
 
     useImperativeHandle(ref, () => ({
       wrapSelection,
+      insertText,
       openLinkMenu,
       prefixLines,
       wrapBlock,

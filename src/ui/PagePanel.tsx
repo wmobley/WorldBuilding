@@ -12,17 +12,23 @@ import {
   ShareIcon,
   TrashIcon
 } from "@primer/octicons-react";
-import type { Doc, Folder, ReferenceEntry } from "../vault/types";
+import type { Asset, Doc, Folder, ReferenceEntry } from "../vault/types";
 import Editor, { type EditorHandle } from "./Editor";
 import MarkdownPreview from "./MarkdownPreview";
 import { formatRelativeTime } from "../lib/text";
 import PrepPanel from "./marginalia/PrepPanel";
 import type { PrepHelpers } from "../prep/helpers";
+import { extractHeadings } from "../domain/markdown/pageModel";
+import { isIndexDoc } from "../vault/indexing";
+import MediaLibraryPanel from "./components/MediaLibraryPanel";
+import { assetEmbedMarkdown, assetGalleryMarkdown } from "../vault/assets";
 
 export default function PagePanel({
   doc,
+  allDocs,
   folders,
   onTitleChange,
+  onTitleCommit,
   onFolderChange,
   onBodyChange,
   onOpenLink,
@@ -30,13 +36,23 @@ export default function PagePanel({
   onCursorLink,
   linkOptions,
   tagOptions,
+  assets,
+  onUploadAsset,
+  onUpdateAsset,
+  onReplaceAsset,
+  onDeleteAsset,
+  renamePreview,
+  onConfirmRename,
+  onCancelRename,
   mode,
   onModeChange,
   isDirty,
+  saveStatus,
   lastEdited,
   onDeleteDoc,
   onOpenFolder,
   onOpenHome,
+  onOpenDoc,
   onMetaClickSelection,
   onShareSnippet,
   canShareSnippet,
@@ -52,8 +68,10 @@ export default function PagePanel({
   onSinceDateChange
 }: {
   doc: Doc | null;
+  allDocs: Doc[];
   folders: Folder[];
   onTitleChange: (title: string) => void;
+  onTitleCommit: () => void;
   onFolderChange: (folderId: string | null) => void;
   onBodyChange: (body: string) => void;
   onOpenLink: (title: string) => void;
@@ -67,13 +85,31 @@ export default function PagePanel({
     slug?: string;
   }>;
   tagOptions: Array<{ type: string; value: string }>;
-  mode: "edit" | "preview";
-  onModeChange: (mode: "edit" | "preview") => void;
+  assets: Asset[];
+  onUploadAsset: (file: File, altText: string) => Promise<void>;
+  onUpdateAsset: (
+    asset: Asset,
+    updates: { filename?: string; altText?: string | null }
+  ) => Promise<void>;
+  onReplaceAsset: (asset: Asset, file: File) => Promise<void>;
+  onDeleteAsset: (asset: Asset) => Promise<void>;
+  renamePreview: {
+    docId: string;
+    fromTitle: string;
+    toTitle: string;
+    linkCount: number;
+  } | null;
+  onConfirmRename: () => void;
+  onCancelRename: () => void;
+  mode: "edit" | "preview" | "split";
+  onModeChange: (mode: "edit" | "preview" | "split") => void;
   isDirty: boolean;
+  saveStatus: "saved" | "unsaved" | "saving" | "error";
   lastEdited: number | null;
   onDeleteDoc: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenHome: () => void;
+  onOpenDoc: (docId: string) => void;
   onMetaClickSelection?: (selection: { text: string; from: number; to: number }) => void;
   onShareSnippet?: (snippet: {
     text: string;
@@ -151,6 +187,213 @@ export default function PagePanel({
     });
   };
 
+  const handleInsertAsset = (asset: Asset) => {
+    const markdown = assetEmbedMarkdown(asset);
+    const block = `\n\n${markdown}\n`;
+    if (editorRef.current) {
+      editorRef.current.insertText(block);
+      return;
+    }
+    const nextBody = doc.body.trimEnd() ? `${doc.body.trimEnd()}${block}` : `${markdown}\n`;
+    onBodyChange(nextBody);
+  };
+
+  const handleInsertGallery = (galleryAssets: Asset[]) => {
+    if (galleryAssets.length === 0) return;
+    const markdown = assetGalleryMarkdown(galleryAssets);
+    const block = `\n\n${markdown}\n`;
+    if (editorRef.current) {
+      editorRef.current.insertText(block);
+      return;
+    }
+    const nextBody = doc.body.trimEnd() ? `${doc.body.trimEnd()}${block}` : `${markdown}\n`;
+    onBodyChange(nextBody);
+  };
+
+  const headings = extractHeadings(doc.body);
+  const siblingDocs = allDocs
+    .filter((entry) => !entry.deletedAt && !isIndexDoc(entry) && (entry.folderId ?? null) === (doc.folderId ?? null))
+    .sort((a, b) => {
+      const order = (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
+      if (order !== 0) return order;
+      return a.title.localeCompare(b.title);
+    });
+  const currentIndex = siblingDocs.findIndex((entry) => entry.id === doc.id);
+  const previousDoc = currentIndex > 0 ? siblingDocs[currentIndex - 1] : null;
+  const nextDoc =
+    currentIndex >= 0 && currentIndex < siblingDocs.length - 1
+      ? siblingDocs[currentIndex + 1]
+      : null;
+  const statusLabel =
+    saveStatus === "saved"
+      ? "Saved"
+      : saveStatus === "saving"
+        ? "Saving..."
+        : saveStatus === "error"
+          ? "Save failed"
+          : "Unsaved";
+
+  const renderToolbar = () => (
+    <div
+      id="page-toolbar"
+      className="flex flex-wrap gap-2 text-xs font-ui uppercase tracking-[0.2em]"
+    >
+      <button
+        onClick={() => editorRef.current?.wrapSelection("**", "**")}
+        data-tooltip="Bold"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Bold"
+      >
+        <BoldIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.wrapSelection("*", "*")}
+        data-tooltip="Italic"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Italic"
+      >
+        <ItalicIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.wrapSelection("~~", "~~")}
+        data-tooltip="Strikethrough"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Strikethrough"
+      >
+        <StrikethroughIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.openLinkMenu()}
+        data-tooltip="Insert link"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Insert link"
+      >
+        <LinkIcon size={16} />
+      </button>
+      {onShareSnippet && (canShareSnippet ?? true) && (
+        <button
+          onClick={handleShareSnippet}
+          data-tooltip="Share selection"
+          className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+          aria-label="Share selection"
+        >
+          <ShareIcon size={16} />
+        </button>
+      )}
+      <button
+        onClick={() => editorRef.current?.wrapSelection("\"", "\"")}
+        data-tooltip="Inline quote"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Inline quote"
+      >
+        <CommentIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.prefixLines("> ")}
+        data-tooltip="Block quote"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Block quote"
+      >
+        <QuoteIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.prefixLines("- ")}
+        data-tooltip="Bulleted list"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Bulleted list"
+      >
+        <ListUnorderedIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.prefixLines("1. ")}
+        data-tooltip="Numbered list"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Numbered list"
+      >
+        <ListOrderedIcon size={16} />
+      </button>
+      <button
+        onClick={() => editorRef.current?.prefixLines("- [ ] ")}
+        data-tooltip="Task list"
+        className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
+        aria-label="Task list"
+      >
+        <TasklistIcon size={16} />
+      </button>
+      <PrepPanel
+        variant="toolbar"
+        prepHelpers={prepHelpers}
+        partyConfig={partyConfig}
+        onPartyConfigChange={onPartyConfigChange}
+        bestiaryReferences={bestiaryReferences}
+        since={sinceDate}
+        onSinceChange={onSinceDateChange}
+      />
+    </div>
+  );
+
+  const renderEditor = () => (
+    <div className="space-y-2">
+      <div
+        className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
+        data-tooltip="Markdown content for this page."
+      >
+        Page Content
+      </div>
+      <Editor
+        ref={editorRef}
+        value={doc.body}
+        onChange={onBodyChange}
+        linkOptions={linkOptions}
+        tagOptions={tagOptions}
+        onPreviewDoc={onPreviewDoc}
+        onCursorLink={onCursorLink}
+        onMetaClickSelection={onMetaClickSelection}
+      />
+    </div>
+  );
+
+  const renderPreview = () => (
+    <div id="page-preview">
+      {doc.body.trim() ? (
+        <MarkdownPreview
+          content={doc.body}
+          onOpenLink={onOpenLink}
+          docs={allDocs}
+          assets={assets}
+        />
+      ) : (
+        <div className="rounded-2xl border border-page-edge bg-parchment/70 p-6 text-center">
+          <div className="text-lg font-display">This page is unwritten...</div>
+          <p className="mt-2 text-ink-soft">
+            Begin a passage in edit mode to breathe life into it.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTableOfContents = () =>
+    headings.length > 0 ? (
+      <aside className="rounded-xl border border-page-edge bg-parchment/70 p-4">
+        <div className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+          On This Page
+        </div>
+        <nav className="mt-3 space-y-1">
+          {headings.map((heading) => (
+            <a
+              key={`${heading.id}-${heading.line}`}
+              href={`#${heading.id}`}
+              className="block rounded-lg px-2 py-1 text-sm text-ink-soft hover:bg-parchment/80 hover:text-ember"
+              style={{ paddingLeft: `${Math.max(0, heading.level - 1) * 0.75 + 0.5}rem` }}
+            >
+              {heading.text}
+            </a>
+          ))}
+        </nav>
+      </aside>
+    ) : null;
+
   return (
     <div id="page-panel" className="page-panel p-8">
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
@@ -175,7 +418,17 @@ export default function PagePanel({
           <span className="text-ink">/ {doc.title || "Untitled Page"}</span>
         </div>
         <div className="flex items-center gap-4">
-          {isDirty && <span className="text-ember">Unsaved</span>}
+          <span
+            className={
+              saveStatus === "error"
+                ? "text-ember"
+                : saveStatus === "saved" && !isDirty
+                  ? "text-ink-soft"
+                  : "text-accent-map"
+            }
+          >
+            {statusLabel}
+          </span>
           {lastEdited ? (
             <span>Last edited {formatRelativeTime(lastEdited)}</span>
           ) : null}
@@ -193,6 +446,12 @@ export default function PagePanel({
           <input
             value={doc.title}
             onChange={(event) => onTitleChange(event.target.value)}
+            onBlur={onTitleCommit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
             id="page-title"
             placeholder="Untitled Page"
             aria-label="Page title"
@@ -248,6 +507,15 @@ export default function PagePanel({
             >
               Preview
             </button>
+            <button
+              onClick={() => onModeChange("split")}
+              className={`px-4 py-2 wb-tooltip ${
+                mode === "split" ? "bg-parchment/80" : "text-ink-soft"
+              }`}
+              data-tooltip="Split editor and preview"
+            >
+              Split
+            </button>
           </div>
           <button
             onClick={onDeleteDoc}
@@ -259,6 +527,34 @@ export default function PagePanel({
           </button>
         </div>
       </div>
+      {renamePreview && renamePreview.docId === doc.id && (
+        <div className="mt-4 rounded-xl border border-accent-map/40 bg-accent-map/10 p-4 text-sm">
+          <div className="font-ui text-xs uppercase tracking-[0.18em] text-accent-map">
+            Rename Preview
+          </div>
+          <p className="mt-2 text-ink-soft">
+            Rename "{renamePreview.fromTitle}" to "{renamePreview.toTitle}" and update{" "}
+            {renamePreview.linkCount} wikilink
+            {renamePreview.linkCount === 1 ? "" : "s"} that point here.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onConfirmRename}
+              className="rounded-full border border-accent-map/40 px-4 py-2 text-xs font-ui uppercase tracking-[0.18em] text-accent-map"
+            >
+              Apply Rename
+            </button>
+            <button
+              type="button"
+              onClick={onCancelRename}
+              className="rounded-full border border-page-edge px-4 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft hover:text-ember"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {showNpcTools && npcCreatures && onUpdateNpcCreature && (
         <div className="mt-4 rounded-2xl border border-page-edge bg-parchment/70 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -313,139 +609,49 @@ export default function PagePanel({
         </div>
       )}
       <div className="mt-6 space-y-4">
-        {mode === "edit" && (
-          <div
-            id="page-toolbar"
-            className="flex flex-wrap gap-2 text-xs font-ui uppercase tracking-[0.2em]"
-          >
-            <button
-              onClick={() => editorRef.current?.wrapSelection("**", "**")}
-              data-tooltip="Bold"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Bold"
-            >
-              <BoldIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.wrapSelection("*", "*")}
-              data-tooltip="Italic"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Italic"
-            >
-              <ItalicIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.wrapSelection("~~", "~~")}
-              data-tooltip="Strikethrough"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Strikethrough"
-            >
-              <StrikethroughIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.openLinkMenu()}
-              data-tooltip="Insert link"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Insert link"
-            >
-              <LinkIcon size={16} />
-            </button>
-            {onShareSnippet && (canShareSnippet ?? true) && (
-              <button
-                onClick={handleShareSnippet}
-                data-tooltip="Share selection"
-                className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-                aria-label="Share selection"
-              >
-                <ShareIcon size={16} />
-              </button>
-            )}
-            <button
-              onClick={() => editorRef.current?.wrapSelection("\"", "\"")}
-              data-tooltip="Inline quote"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Inline quote"
-            >
-              <CommentIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.prefixLines("> ")}
-              data-tooltip="Block quote"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Block quote"
-            >
-              <QuoteIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.prefixLines("- ")}
-              data-tooltip="Bulleted list"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Bulleted list"
-            >
-              <ListUnorderedIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.prefixLines("1. ")}
-              data-tooltip="Numbered list"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Numbered list"
-            >
-              <ListOrderedIcon size={16} />
-            </button>
-            <button
-              onClick={() => editorRef.current?.prefixLines("- [ ] ")}
-              data-tooltip="Task list"
-              className="rounded-full border border-page-edge p-2 text-ink-soft hover:text-ember wb-tooltip"
-              aria-label="Task list"
-            >
-              <TasklistIcon size={16} />
-            </button>
-            <PrepPanel
-              variant="toolbar"
-              prepHelpers={prepHelpers}
-              partyConfig={partyConfig}
-              onPartyConfigChange={onPartyConfigChange}
-              bestiaryReferences={bestiaryReferences}
-              since={sinceDate}
-              onSinceChange={onSinceDateChange}
-            />
+        {mode !== "preview" && renderToolbar()}
+        <MediaLibraryPanel
+          assets={assets}
+          onUpload={onUploadAsset}
+          onUpdate={onUpdateAsset}
+          onReplace={onReplaceAsset}
+          onInsert={handleInsertAsset}
+          onInsertGallery={handleInsertGallery}
+          onDelete={onDeleteAsset}
+        />
+        {mode === "split" ? (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14rem]">
+            {renderEditor()}
+            <div className="min-w-0">{renderPreview()}</div>
+            {renderTableOfContents()}
           </div>
-        )}
-        {mode === "edit" ? (
-          <div className="space-y-2">
-            <div
-              className="text-xs font-ui uppercase tracking-[0.18em] text-ink-soft wb-tooltip"
-              data-tooltip="Markdown content for this page."
-            >
-              Page Content
-            </div>
-            <Editor
-              ref={editorRef}
-              value={doc.body}
-              onChange={onBodyChange}
-              linkOptions={linkOptions}
-              tagOptions={tagOptions}
-              onPreviewDoc={onPreviewDoc}
-              onCursorLink={onCursorLink}
-              onMetaClickSelection={onMetaClickSelection}
-            />
+        ) : mode === "edit" ? (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_14rem]">
+            {renderEditor()}
+            {renderTableOfContents()}
           </div>
         ) : (
-          <div id="page-preview">
-            {doc.body.trim() ? (
-              <MarkdownPreview content={doc.body} onOpenLink={onOpenLink} />
-            ) : (
-              <div className="rounded-2xl border border-page-edge bg-parchment/70 p-6 text-center">
-                <div className="text-lg font-display">This page is unwritten…</div>
-                <p className="mt-2 text-ink-soft">
-                  Begin a passage in edit mode to breathe life into it.
-                </p>
-              </div>
-            )}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_14rem]">
+            <div className="min-w-0">{renderPreview()}</div>
+            {renderTableOfContents()}
           </div>
         )}
+        <div className="flex flex-wrap justify-between gap-3 border-t border-page-edge pt-4 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft">
+          {previousDoc ? (
+            <button type="button" onClick={() => onOpenDoc(previousDoc.id)} className="hover:text-ember">
+              Previous / {previousDoc.title}
+            </button>
+          ) : (
+            <span />
+          )}
+          {nextDoc && (
+            <button type="button" onClick={() => onOpenDoc(nextDoc.id)} className="hover:text-ember">
+              Next / {nextDoc.title}
+            </button>
+          )}
+        </div>
         {mode === "edit" && !doc.body.trim() && (
-          <p className="marginal-note">This page is unwritten…</p>
+          <p className="marginal-note">This page is unwritten...</p>
         )}
       </div>
     </div>

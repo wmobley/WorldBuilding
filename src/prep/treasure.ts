@@ -1,4 +1,3 @@
-import type { LootResult } from "../lib/loot";
 import { generateLoot } from "../lib/loot";
 import { createSeededRng } from "../lib/random";
 

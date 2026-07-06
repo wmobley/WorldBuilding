@@ -27,10 +27,10 @@ describe("roadmap/02 supabase sync - query subscriptions", () => {
     );
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current).toEqual(["ok"]));
     expect(supabaseMocks.channelFactory).toHaveBeenCalledTimes(1);
     expect(supabaseMocks.channelOn).toHaveBeenCalledTimes(2);
     expect(supabaseMocks.channelSubscribe).toHaveBeenCalledTimes(1);
-    expect(result.current).toEqual(["ok"]);
 
     unmount();
     expect(supabaseMocks.removeChannel).toHaveBeenCalledTimes(1);

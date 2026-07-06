@@ -7,11 +7,17 @@ import useSupabaseQuery from "../lib/useSupabaseQuery";
 import { formatRelativeTime } from "../lib/text";
 import {
   getCampaignById,
+  listAssets,
   listCampaigns,
   listDocs,
   listFolders,
   listSharedSnippets
 } from "../vault/queries";
+import {
+  buildDocumentTitle,
+  buildMetaDescription,
+  useDocumentMeta
+} from "../lib/useDocumentMeta";
 
 export default function PlayerViewPage() {
   const { id: campaignId } = useParams();
@@ -47,6 +53,12 @@ export default function PlayerViewPage() {
     [activeCampaignId],
     [],
     { tables: ["shared_snippets"] }
+  );
+  const assets = useSupabaseQuery(
+    () => (activeCampaignId ? listAssets(activeCampaignId) : Promise.resolve([])),
+    [activeCampaignId],
+    [],
+    { tables: ["assets"] }
   );
 
   const docMap = useMemo(
@@ -99,6 +111,11 @@ export default function PlayerViewPage() {
     if (!selectedDocId && sortedDocs.length > 0) return sortedDocs[0];
     return selectedDocId ? docMap.get(selectedDocId) ?? null : null;
   }, [docMap, selectedDocId, sortedDocs]);
+
+  useDocumentMeta({
+    title: buildDocumentTitle(selectedDoc?.title ?? "Player View", campaign?.name),
+    description: buildMetaDescription(selectedDoc?.body ?? campaign?.synopsis ?? "")
+  });
 
   useEffect(() => {
     if (!campaignId) return;
@@ -202,7 +219,13 @@ export default function PlayerViewPage() {
           {selectedDoc ? (
             <div className="space-y-4">
               <div className="text-2xl font-display">{selectedDoc.title}</div>
-              <MarkdownPreview content={selectedDoc.body} onOpenLink={handleOpenLink} />
+              <MarkdownPreview
+                content={selectedDoc.body}
+                onOpenLink={handleOpenLink}
+                docs={docs ?? []}
+                assets={assets ?? []}
+                audience="player"
+              />
             </div>
           ) : (
             <div className="rounded-2xl border border-page-edge bg-parchment/70 p-6 text-center">

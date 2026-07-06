@@ -1318,7 +1318,7 @@ export default function ReferencePage() {
                 })}
               </div>
             </div>
-          ) : activeReferenceDetail ? (
+          ) : activeReference && activeReferenceDetail ? (
             <div className="mt-2">
               <div className="text-2xl font-display">{activeReference.name}</div>
               <div className="mt-1 text-xs font-ui uppercase tracking-[0.2em] text-ink-soft">

@@ -13,6 +13,7 @@ import {
   purgeDoc,
   purgeFolder,
   renameDoc,
+  renameDocAndUpdateLinks,
   renameFolder,
   restoreDoc,
   restoreFolder,
@@ -23,16 +24,27 @@ import {
   setSetting,
   getSetting,
   setNpcProfile,
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  listAssets,
+  uploadAsset,
+  updateAssetMetadata,
+  replaceAssetFile,
+  deleteAsset,
   trashDoc,
   trashFolder
 } from "../vault/queries";
 import { seedReferencesIfNeeded } from "../vault/referenceSeed";
 import { isIndexDoc } from "../vault/indexing";
-import { templates } from "../lib/templates";
+import { templates, type TemplateOption } from "../lib/templates";
 import { useDebouncedCallback } from "../lib/useDebouncedCallback";
 import { useHotkeys } from "../lib/useHotkeys";
 import type { Doc } from "../vault/types";
 import { useAuth } from "../auth/AuthGate";
+import useSupabaseQuery from "../lib/useSupabaseQuery";
+import TemplateManagerModal from "../ui/components/TemplateManagerModal";
 import type { SelectionPrompt } from "./vault/VaultSelectionModal";
 import { applyTemplateTitle, parseLinkedDocId, suggestTitleFromText } from "./vault/utils";
 import { buildPrepHelpers } from "../prep/helpers";
@@ -41,6 +53,13 @@ import useVaultWorldbuild from "./vault/useVaultWorldbuild";
 import useVaultLinkHandlers from "./vault/useVaultLinkHandlers";
 import useVaultCampaigns from "./vault/useVaultCampaigns";
 import useVaultData from "./vault/useVaultData";
+import { buildVaultDiagnostics } from "../features/vaultDiagnostics/buildVaultDiagnostics";
+import { countWikiLinkTargetReplacements } from "../domain/markdown/pageModel";
+import {
+  buildDocumentTitle,
+  buildMetaDescription,
+  useDocumentMeta
+} from "../lib/useDocumentMeta";
 
 export default function VaultPage() {
   const { docId, folderName } = useParams();
@@ -60,20 +79,28 @@ export default function VaultPage() {
     difficulty: "easy" | "medium" | "hard" | "deadly";
   }>({ size: 4, level: 3, difficulty: "medium" });
   const [sinceDate, setSinceDate] = useState("");
-  const [pageMode, setPageMode] = useState<"edit" | "preview">(() => {
+  const [pageMode, setPageMode] = useState<"edit" | "preview" | "split">(() => {
     if (typeof window === "undefined") return "edit";
     const stored = window.localStorage.getItem("pageMode");
-    return stored === "preview" ? "preview" : "edit";
+    return stored === "preview" || stored === "split" ? stored : "edit";
   });
+  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving" | "error">("saved");
   const [linkPreviewDocId, setLinkPreviewDocId] = useState<string | null>(null);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [pendingRename, setPendingRename] = useState<{
+    docId: string;
+    fromTitle: string;
+    toTitle: string;
+    linkCount: number;
+  } | null>(null);
   const [templatePrompt, setTemplatePrompt] = useState<{
-    template: typeof templates[number];
+    template: TemplateOption;
     folderId: string | null;
   } | null>(null);
   const [selectionPrompt, setSelectionPrompt] = useState<SelectionPrompt | null>(null);
   const [npcPrompt, setNpcPrompt] = useState<{
-    template: typeof templates[number];
+    template: TemplateOption;
     folderId: string | null;
   } | null>(null);
   const [linkCreatePrompt, setLinkCreatePrompt] = useState<string | null>(null);
@@ -103,6 +130,7 @@ export default function VaultPage() {
     references,
     bestiaryReferences,
     mapPins,
+    mapLocations,
     npcProfile,
     backlinks,
     tags,
@@ -115,7 +143,52 @@ export default function VaultPage() {
     tagFilter,
     linkPreviewDocId
   });
+  const userTemplates = useSupabaseQuery(
+    () => (activeCampaignId ? listTemplates(activeCampaignId) : Promise.resolve([])),
+    [activeCampaignId],
+    [],
+    { tables: ["templates"] }
+  );
+  const assets = useSupabaseQuery(
+    () => (activeCampaignId ? listAssets(activeCampaignId) : Promise.resolve([])),
+    [activeCampaignId],
+    [],
+    { tables: ["assets"] }
+  );
+  const templateOptions = useMemo(
+    () => [
+      ...templates.map((template) => ({ ...template, source: "bundled" as const })),
+      ...(userTemplates ?? []).map((template) => ({
+        id: template.id,
+        label: template.name,
+        content: template.body,
+        description: template.description,
+        kind: template.kind,
+        source: "user" as const,
+        campaignId: template.campaignId
+      }))
+    ],
+    [userTemplates]
+  );
   const canShareSnippets = Boolean(activeCampaign?.ownerId && user?.id === activeCampaign.ownerId);
+  useDocumentMeta({
+    title: buildDocumentTitle(currentDoc?.title ?? "Vault", activeCampaign?.name),
+    description: buildMetaDescription(currentDoc?.body ?? activeCampaign?.synopsis ?? "")
+  });
+  const diagnosticsReport = useMemo(
+    () =>
+      buildVaultDiagnostics({
+        docs: docs ?? [],
+        references: references ?? [],
+        mapLocations: mapLocations ?? [],
+        assetPaths: (assets ?? []).flatMap((asset) => [
+          asset.storagePath,
+          `asset:${asset.id}`,
+          asset.filename
+        ])
+      }),
+    [docs, references, mapLocations, assets]
+  );
   const npcCreature = useMemo(() => {
     if (!npcProfile?.creatureId) return null;
     const creature = (bestiaryReferences ?? []).find(
@@ -168,7 +241,6 @@ export default function VaultPage() {
         setTitleDraft(currentDoc.title);
         setBodyDraft(nextBody);
         debouncedSave.cancel?.();
-        debouncedRename.cancel?.();
         return;
       }
       if (
@@ -183,7 +255,7 @@ export default function VaultPage() {
       setBodyDraft(currentDoc.body);
     }
     debouncedSave.cancel?.();
-    debouncedRename.cancel?.();
+    setSaveStatus("saved");
   }, [currentDoc?.id]);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -236,9 +308,9 @@ export default function VaultPage() {
   useEffect(() => {
     const applyMode = async () => {
       const storedLocal = window.localStorage.getItem("pageMode");
-      if (storedLocal === "edit" || storedLocal === "preview") return;
+      if (storedLocal === "edit" || storedLocal === "preview" || storedLocal === "split") return;
       const stored = await getSetting("pageMode");
-      if (stored === "edit" || stored === "preview") {
+      if (stored === "edit" || stored === "preview" || stored === "split") {
         setPageMode(stored);
         window.localStorage.setItem("pageMode", stored);
       }
@@ -251,13 +323,23 @@ export default function VaultPage() {
   }, [pageMode]);
   const debouncedSave = useDebouncedCallback((nextBody: string) => {
     if (!currentDoc) return;
-    saveDocContent(currentDoc.id, nextBody).catch(() => undefined);
+    setSaveStatus("saving");
+    saveDocContent(currentDoc.id, nextBody)
+      .then(() => setSaveStatus("saved"))
+      .catch(() => setSaveStatus("error"));
   }, 500);
 
-  const debouncedRename = useDebouncedCallback((nextTitle: string) => {
-    if (!currentDoc) return;
-    renameDoc(currentDoc.id, nextTitle).catch(() => undefined);
-  }, 500);
+  const applyRename = async (rename: typeof pendingRename) => {
+    if (!rename) return;
+    setSaveStatus("saving");
+    try {
+      await renameDocAndUpdateLinks(rename.docId, rename.fromTitle, rename.toTitle);
+      setSaveStatus("saved");
+      setPendingRename(null);
+    } catch {
+      setSaveStatus("error");
+    }
+  };
   useEffect(() => {
     if (!activeCampaignId) return;
     updateAllFolderIndexes(activeCampaignId).catch(() => undefined);
@@ -369,7 +451,7 @@ export default function VaultPage() {
   };
 
   const handleCreateDocFromTemplate = async (
-    template: typeof templates[number],
+    template: TemplateOption,
     folderId: string | null
   ) => {
     if (!activeCampaignId) return;
@@ -452,8 +534,9 @@ export default function VaultPage() {
           setDocSortOrder(folderId, orderedDocIds).catch(() => undefined);
         }}
         onCreateDoc={handleCreateDoc}
-        templates={templates}
+        templates={templateOptions}
         onCreateDocFromTemplate={handleCreateDocFromTemplate}
+        onManageTemplates={() => setTemplateManagerOpen(true)}
         activeFolderId={currentDoc?.folderId ?? null}
         onOpenTrash={() => navigate("/trash")}
         trashedCount={(trashedDocs?.length ?? 0) + (trashedFolders?.length ?? 0)}
@@ -477,10 +560,45 @@ export default function VaultPage() {
         isDirty={Boolean(
           currentDoc && (titleDraft !== currentDoc.title || bodyDraft !== currentDoc.body)
         )}
+        saveStatus={saveStatus}
         lastEdited={currentDoc?.updatedAt ?? null}
         onTitleChange={(title) => {
           setTitleDraft(title);
-          debouncedRename(title);
+          setSaveStatus("unsaved");
+          setPendingRename(null);
+        }}
+        onTitleCommit={() => {
+          if (!currentDoc || titleDraft === currentDoc.title) return;
+          const nextTitle = titleDraft.trim() || "Untitled Page";
+          const linkCount = (docs ?? [])
+            .filter((entry) => entry.id !== currentDoc.id)
+            .reduce(
+              (count, entry) =>
+                count + countWikiLinkTargetReplacements(entry.body, currentDoc.title),
+              0
+            );
+          if (linkCount > 0) {
+            setPendingRename({
+              docId: currentDoc.id,
+              fromTitle: currentDoc.title,
+              toTitle: nextTitle,
+              linkCount
+            });
+            return;
+          }
+          applyRename({
+            docId: currentDoc.id,
+            fromTitle: currentDoc.title,
+            toTitle: nextTitle,
+            linkCount
+          }).catch(() => undefined);
+        }}
+        renamePreview={pendingRename}
+        onConfirmRename={() => applyRename(pendingRename).catch(() => undefined)}
+        onCancelRename={() => {
+          setPendingRename(null);
+          setTitleDraft(currentDoc?.title ?? "");
+          setSaveStatus("saved");
         }}
         onFolderChange={(folderId) => {
           if (!currentDoc) return;
@@ -488,6 +606,7 @@ export default function VaultPage() {
         }}
         onBodyChange={(body) => {
           setBodyDraft(body);
+          setSaveStatus("unsaved");
           debouncedSave(body);
         }}
         onOpenLink={openDocByLink}
@@ -519,6 +638,20 @@ export default function VaultPage() {
           }))
         ]}
         tagOptions={chatTagOptions ?? []}
+        assets={assets ?? []}
+        onUploadAsset={async (file, altText) => {
+          if (!activeCampaignId) return;
+          await uploadAsset(activeCampaignId, currentDoc?.id ?? null, file, altText);
+        }}
+        onUpdateAsset={async (asset, updates) => {
+          await updateAssetMetadata(asset.id, updates);
+        }}
+        onReplaceAsset={async (asset, file) => {
+          await replaceAssetFile(asset, file);
+        }}
+        onDeleteAsset={async (asset) => {
+          await deleteAsset(asset);
+        }}
         onDeleteDoc={() => {
           if (!currentDoc) return;
           setDocDeletePrompt(currentDoc);
@@ -582,6 +715,7 @@ export default function VaultPage() {
         onClearFilter={() => setTagFilter(null)}
         linkPreview={linkPreviewDoc ?? null}
         mapPins={mapPins ?? []}
+        diagnosticsReport={diagnosticsReport}
         onOpenMaps={() => navigate("/maps")}
         npcCreature={npcCreature}
         worldbuildAnchors={worldbuildAnchors}
@@ -721,6 +855,30 @@ export default function VaultPage() {
         activeCampaignId={activeCampaignId}
         createDoc={createDoc}
         saveDocContent={saveDocContent}
+      />
+      <TemplateManagerModal
+        isOpen={templateManagerOpen}
+        templates={userTemplates ?? []}
+        onClose={() => setTemplateManagerOpen(false)}
+        onCreate={(draft) => {
+          if (!activeCampaignId) return;
+          createTemplate(activeCampaignId, draft).catch(() => undefined);
+        }}
+        onUpdate={(templateId, draft) => {
+          updateTemplate(templateId, draft).catch(() => undefined);
+        }}
+        onDuplicate={(template) => {
+          if (!activeCampaignId) return;
+          createTemplate(activeCampaignId, {
+            name: `${template.name} Copy`,
+            description: template.description,
+            kind: template.kind,
+            body: template.body
+          }).catch(() => undefined);
+        }}
+        onDelete={(templateId) => {
+          deleteTemplate(templateId).catch(() => undefined);
+        }}
       />
     </>
   );

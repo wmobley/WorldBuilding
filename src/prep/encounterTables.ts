@@ -45,24 +45,24 @@ type TableMatch = {
 };
 
 const terrainTables = new Map<string, EncounterTable>([
-  ["arctic", arctic as EncounterTable],
-  ["coastal", coastal as EncounterTable],
-  ["desert", desert as EncounterTable],
-  ["forest", forest as EncounterTable],
-  ["jungle", jungle as EncounterTable],
-  ["mountains", mountain as EncounterTable],
-  ["swamp", swamp as EncounterTable],
-  ["underdark", underdark as EncounterTable],
-  ["underwater", underwater as EncounterTable],
-  ["urban", urban as EncounterTable]
+  ["arctic", arctic as unknown as EncounterTable],
+  ["coastal", coastal as unknown as EncounterTable],
+  ["desert", desert as unknown as EncounterTable],
+  ["forest", forest as unknown as EncounterTable],
+  ["jungle", jungle as unknown as EncounterTable],
+  ["mountains", mountain as unknown as EncounterTable],
+  ["swamp", swamp as unknown as EncounterTable],
+  ["underdark", underdark as unknown as EncounterTable],
+  ["underwater", underwater as unknown as EncounterTable],
+  ["urban", urban as unknown as EncounterTable]
 ]);
 
 const travelTables = new Map<string, EncounterTable>([
-  ["road", travelRoad as EncounterTable],
-  ["sea", travelSea as EncounterTable],
-  ["river", travelRiver as EncounterTable],
-  ["underground", travelUnderground as EncounterTable],
-  ["air", travelAir as EncounterTable]
+  ["road", travelRoad as unknown as EncounterTable],
+  ["sea", travelSea as unknown as EncounterTable],
+  ["river", travelRiver as unknown as EncounterTable],
+  ["underground", travelUnderground as unknown as EncounterTable],
+  ["air", travelAir as unknown as EncounterTable]
 ]);
 
 export function getEncounterTables() {

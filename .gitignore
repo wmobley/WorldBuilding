@@ -27,5 +27,8 @@ sw-injector.js
 # Log files
 *.log
 
+# Local dev lifecycle state
+.worldbuilding-dev/
+
 # Dev scripts
 dev-*.sh

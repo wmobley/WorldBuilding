@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "burnup": "bash scripts/burnup.sh",
+    "burndown": "bash scripts/burndown.sh",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

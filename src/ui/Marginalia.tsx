@@ -7,6 +7,9 @@ import { usePanelCollapse } from "./usePanelCollapse";
 import BacklinksPanel from "./marginalia/BacklinksPanel";
 import TagsPanel from "./marginalia/TagsPanel";
 import WorldbuildPanel from "./marginalia/WorldbuildPanel";
+import DiagnosticsPanel from "./marginalia/DiagnosticsPanel";
+import type { VaultDiagnosticsReport } from "../features/vaultDiagnostics/buildVaultDiagnostics";
+import SignedStorageImage from "./components/SignedStorageImage";
 
 export type Backlink = {
   source: Doc;
@@ -36,6 +39,7 @@ export default function Marginalia({
   onClearFilter,
   linkPreview,
   mapPins,
+  diagnosticsReport,
   onOpenMaps,
   npcCreature,
   worldbuildAnchors,
@@ -82,6 +86,7 @@ export default function Marginalia({
     | { type: "reference"; data: { id: string; name: string; content: string; slug: string } }
     | null;
   mapPins: MapPin[];
+  diagnosticsReport: VaultDiagnosticsReport;
   onOpenMaps: () => void;
   npcCreature: { name: string; rawJson?: string } | null;
   worldbuildAnchors: WorldbuildAnchor[];
@@ -139,6 +144,7 @@ export default function Marginalia({
 
   return (
     <div id="marginalia" className="space-y-4">
+      <DiagnosticsPanel report={diagnosticsReport} onOpenDoc={onOpenDoc} />
       <WorldbuildPanel
         aiProvider={aiProvider}
         aiMessages={aiMessages}
@@ -205,10 +211,11 @@ export default function Marginalia({
                 >
                   <div className="text-sm font-display">{map.name}</div>
                   <div className="relative w-full overflow-hidden rounded-xl border border-page-edge bg-parchment/60">
-                    <img
-                      src={map.imageDataUrl}
+                    <SignedStorageImage
+                      storagePath={map.imageStoragePath}
+                      fallbackSrc={map.imageDataUrl}
                       alt={map.name}
-                      className="block w-full h-auto"
+                      className="block h-auto w-full"
                     />
                     {pins.map((pin) => (
                       <span

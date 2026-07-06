@@ -3,7 +3,7 @@ import type { Doc, Folder } from "../../vault/types";
 import type { WorldbuildAnchorType } from "../../ai/worldbuild";
 import { INDEX_END, INDEX_START } from "../../vault/indexing";
 
-const wikilinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+const wikilinkRegex = /(!)?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 export function collectFolderPath(folderId: string | null, folderMap: Map<string, Folder>) {
   const names: string[] = [];
@@ -30,6 +30,8 @@ export function classifyAnchorType(
 }
 
 export function applyTemplateTitle(template: string, title: string) {
+  const withPlaceholder = template.replace(/{{\s*title\s*}}/gi, title);
+  if (withPlaceholder !== template) return withPlaceholder;
   const lines = template.split("\n");
   if (lines[0]?.startsWith("# ")) {
     lines[0] = `# ${title}`;
@@ -84,7 +86,8 @@ export function parseLinkedDocId(text: string) {
 }
 
 export function transformWikilinks(markdown: string) {
-  return markdown.replace(wikilinkRegex, (_, target: string, alias?: string) => {
+  return markdown.replace(wikilinkRegex, (match, embedMarker: string | undefined, target: string, alias?: string) => {
+    if (embedMarker) return match;
     const label = (alias || target).trim();
     const trimmed = target.trim();
     if (trimmed.toLowerCase().startsWith("folder:")) {

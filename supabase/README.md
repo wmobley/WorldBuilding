@@ -4,17 +4,122 @@ This project uses a graph-like model (docs as nodes, edges as links). The SQL in
 `supabase/graph.sql` sets up tables, indexes, and traversal helpers in Postgres,
 and enables `pg_graphql` so Supabase can expose the schema over GraphQL.
 `supabase/app-schema.sql` adds the remaining application tables (folders, tags,
-references, maps, etc.) with row-level security.
+references, templates, assets, maps, etc.) with row-level security.
+`supabase/campaign-sharing.sql` adds campaign members, invites, shared snippets,
+and shared folder/page policies.
 
-## Apply the schema
+## Local Supabase
+
+This repo is configured for the Supabase CLI. To start a local database and API:
+
+```bash
+supabase start
+supabase status -o env
+```
+
+Create `.env` from `.env.example` and copy the local `ANON_KEY` into
+`VITE_SUPABASE_ANON_KEY`.
+
+To recreate the local database from the checked-in migrations:
+
+```bash
+supabase db reset --local --no-seed
+```
+
+The migration order mirrors the raw SQL files:
+
+1. `supabase/migrations/20260706000100_graph.sql`
+2. `supabase/migrations/20260706000200_graph_rls.sql`
+3. `supabase/migrations/20260706000300_app_schema.sql`
+4. `supabase/migrations/20260706000400_campaign_sharing.sql`
+5. `supabase/migrations/20260706000500_assets_storage.sql`
+
+## Apply the Schema To A Hosted Project
 
 1. Create a Supabase project.
 2. Open the SQL editor.
 3. Run `supabase/graph.sql`.
 4. Run `supabase/graph-rls.sql`.
 5. Run `supabase/app-schema.sql`.
+6. Run `supabase/campaign-sharing.sql`.
+7. Run `supabase/assets-storage.sql`.
 
-If you prefer migrations, paste the contents into your migration system.
+The checked-in migrations can also be used with a linked hosted project, but
+`supabase db push` mutates remote state and should only be run after confirming
+the target project.
+
+## App environment
+
+The Vite app requires:
+
+```bash
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_SUPABASE_REDIRECT_URL=
+```
+
+Configure Supabase Auth magic-link redirect URLs to include the local dev URL and
+the deployed app URL. `VITE_SUPABASE_REDIRECT_URL` is optional locally; the app
+falls back to `window.location.origin`.
+
+Local Supabase enables anonymous sign-in so the development login button can
+skip magic-link email while still exercising real Supabase sessions and RLS.
+The app only shows that button when `import.meta.env.DEV` is true and
+`VITE_ENABLE_DEV_LOGIN=true`.
+
+## Tables added by app schema
+
+`app-schema.sql` creates or updates:
+
+- `folders`
+- `tags`
+- `settings`
+- `references`
+- `npc_profiles`
+- `dm_screen_cards`
+- `maps`
+- `map_locations`
+- `session_notes`
+- `templates`
+- `assets`
+
+Maps still support existing `image_data_url` rows. New map/media work can use the
+Storage-ready `image_storage_path`, `width`, `height`, and `assets` metadata
+columns after Supabase Storage buckets and policies are configured.
+
+## Storage Bucket
+
+`assets-storage.sql` creates a private Supabase Storage bucket:
+
+- Bucket id: `campaign-assets`
+- Object path shape for page assets: `<campaign_id>/<asset_id>-<safe_filename>`
+- Object path shape for map images: `<campaign_id>/maps/<map_id>-<safe_filename>`
+- Maximum file size: 50 MiB
+- Allowed MIME types: common images, PDF, audio, and video formats
+
+Storage object policies allow campaign owners to select, insert, update, and
+delete objects whose first path segment matches their campaign id. Campaign
+members can select only asset objects whose `assets` row points to a shared page
+or a page inside a shared folder. Map Storage paths are not exposed to players by
+that shared-asset policy.
+Markdown stores stable asset references such as:
+
+```markdown
+![[asset:asset-id|Caption]]
+```
+
+The app resolves those references to short-lived signed Storage URLs at render
+time. Do not paste signed URLs into page Markdown.
+
+Simple galleries use stable asset ids:
+
+```markdown
+{{gallery: asset:asset-id, asset:other-asset-id}}
+```
+
+New map uploads write image files to the same private bucket and store
+`maps.image_storage_path`, while existing `maps.image_data_url` rows continue to
+render as a fallback.
 
 ## Example SQL queries
 
@@ -56,6 +161,9 @@ query ShortestPath {
 
 ## Notes
 
-- Row-level security is enabled in `supabase/graph-rls.sql` and
-  `supabase/app-schema.sql`. Extend policies if you add shared campaigns.
+- Row-level security is enabled in `supabase/graph-rls.sql`,
+  `supabase/app-schema.sql`, and `supabase/campaign-sharing.sql`.
 - `edges` supports `edge_type` and `weight` for richer AI inference.
+- Remote project resets, `supabase db push`, and Storage bucket changes are
+  external state mutations. Back up data and confirm the target project before
+  running those commands.
