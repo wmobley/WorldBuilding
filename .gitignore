@@ -37,3 +37,6 @@ CLAUDE.md
 
 # Dev scripts
 dev-*.sh
+
+# Local Netlify folder
+.netlify
