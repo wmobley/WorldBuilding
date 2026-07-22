@@ -19,6 +19,7 @@ import {
   listEdgesFromDocs,
   listFolders,
   listAllReferences,
+  listVaultSources,
   listTagsForDocs,
   setSetting,
   unarchiveCampaign,
@@ -41,6 +42,17 @@ import {
   extractFoundryReferenceEntries,
   type ImportSource
 } from "../lib/importExport";
+import {
+  createZipSourceKey,
+  parseGithubRepoUrl,
+  parseObsidianZip,
+  type ObsidianImportPreview
+} from "../lib/obsidianImport";
+import {
+  applyObsidianImport,
+  type AppliedObsidianImportResult,
+  type ObsidianSourceInput
+} from "../features/obsidian/applyObsidianImport";
 import { createId } from "../lib/id";
 
 export default function SettingsPage() {
@@ -75,6 +87,21 @@ export default function SettingsPage() {
     active: boolean;
     label: string;
   }>({ active: false, label: "" });
+  const [obsidianZipFile, setObsidianZipFile] = useState<File | null>(null);
+  const [obsidianGithubUrl, setObsidianGithubUrl] = useState("");
+  const [obsidianGithubBranch, setObsidianGithubBranch] = useState("main");
+  const [obsidianGithubRootPath, setObsidianGithubRootPath] = useState("");
+  const [obsidianPreview, setObsidianPreview] = useState<{
+    preview: ObsidianImportPreview;
+    sourceInput: ObsidianSourceInput;
+  } | null>(null);
+  const [obsidianResult, setObsidianResult] =
+    useState<AppliedObsidianImportResult | null>(null);
+  const [obsidianState, setObsidianState] = useState<{
+    active: boolean;
+    label: string;
+    error: string;
+  }>({ active: false, label: "", error: "" });
   const [aiProvider, setAiProvider] = useState("none");
   const [openAiKey, setOpenAiKey] = useState("");
   const [openAiModel, setOpenAiModel] = useState("gpt-4o-mini");
@@ -136,6 +163,12 @@ export default function SettingsPage() {
     [activeCampaignId],
     [],
     { tables: ["docs"] }
+  );
+  const vaultSources = useSupabaseQuery(
+    () => (activeCampaignId ? listVaultSources(activeCampaignId) : Promise.resolve([])),
+    [activeCampaignId],
+    [],
+    { tables: ["vault_sources"] }
   );
 
   useEffect(() => {
@@ -776,6 +809,93 @@ export default function SettingsPage() {
     }
   };
 
+  const previewObsidianZip = async () => {
+    if (!obsidianZipFile) return;
+    setObsidianState({ active: true, label: "Reading Obsidian zip...", error: "" });
+    setObsidianResult(null);
+    try {
+      const preview = await parseObsidianZip(obsidianZipFile);
+      setObsidianPreview({
+        preview,
+        sourceInput: {
+          provider: "zip",
+          sourceKey: createZipSourceKey(obsidianZipFile.name),
+          displayName: obsidianZipFile.name || "Obsidian zip archive"
+        }
+      });
+      setObsidianState({
+        active: false,
+        label: `Ready to import ${preview.docs.length} pages and ${preview.images.length} images.`,
+        error: ""
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not read Obsidian zip.";
+      setObsidianPreview(null);
+      setObsidianState({ active: false, label: "", error: message });
+    }
+  };
+
+  const previewObsidianGithub = async () => {
+    setObsidianState({ active: true, label: "Downloading public GitHub archive...", error: "" });
+    setObsidianResult(null);
+    try {
+      const repo = parseGithubRepoUrl(
+        obsidianGithubUrl,
+        obsidianGithubBranch,
+        obsidianGithubRootPath
+      );
+      const response = await fetch(repo.archiveUrl);
+      if (!response.ok) {
+        throw new Error(`GitHub responded with ${response.status}. Check the repo and branch.`);
+      }
+      const archive = await response.blob();
+      const preview = await parseObsidianZip(archive, { rootPath: repo.rootPath });
+      setObsidianPreview({
+        preview,
+        sourceInput: {
+          provider: "github",
+          sourceKey: repo.sourceKey,
+          displayName: repo.displayName,
+          repoOwner: repo.owner,
+          repoName: repo.repo,
+          repoBranch: repo.branch,
+          rootPath: repo.rootPath
+        }
+      });
+      setObsidianState({
+        active: false,
+        label: `Ready to import ${preview.docs.length} pages and ${preview.images.length} images from ${repo.displayName}.`,
+        error: ""
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not download the public GitHub archive.";
+      setObsidianPreview(null);
+      setObsidianState({ active: false, label: "", error: message });
+    }
+  };
+
+  const runObsidianImport = async () => {
+    if (!activeCampaignId || !obsidianPreview) return;
+    setObsidianState({ active: true, label: "Importing Obsidian vault...", error: "" });
+    try {
+      const result = await applyObsidianImport({
+        campaignId: activeCampaignId,
+        preview: obsidianPreview.preview,
+        sourceInput: obsidianPreview.sourceInput
+      });
+      setObsidianResult(result);
+      setObsidianState({
+        active: false,
+        label: `Import complete for ${result.source.displayName}.`,
+        error: ""
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Obsidian import failed.";
+      setObsidianState({ active: false, label: "", error: message });
+    }
+  };
+
   return (
     <>
       <AppShell
@@ -954,6 +1074,147 @@ export default function SettingsPage() {
                   )}
                   <p className="marginal-note">
                     Supports Foundry JSON/DB, 5e.tools JSON, and zip bundles of either.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-page-edge bg-parchment/70 p-5 space-y-4">
+                  <div className="font-ui text-xs uppercase tracking-[0.18em] text-ink-soft">
+                    Obsidian Vault
+                  </div>
+                  <div className="grid gap-3">
+                    <label className="text-xs font-ui uppercase tracking-[0.16em] text-ink-soft">
+                      Zip archive
+                      <input
+                        type="file"
+                        accept=".zip,application/zip"
+                        onChange={(event) => {
+                          setObsidianZipFile(event.target.files?.[0] ?? null);
+                          setObsidianPreview(null);
+                          setObsidianResult(null);
+                        }}
+                        className="mt-1 block w-full text-xs font-ui normal-case tracking-normal"
+                      />
+                    </label>
+                    <button
+                      onClick={() => previewObsidianZip().catch(() => undefined)}
+                      disabled={!obsidianZipFile || obsidianState.active}
+                      className="w-full rounded-xl border border-page-edge px-3 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft enabled:hover:text-ember disabled:opacity-50"
+                    >
+                      Preview Zip Import
+                    </button>
+                  </div>
+                  <div className="grid gap-2 rounded-xl border border-page-edge bg-parchment/60 p-3">
+                    <label className="text-xs font-ui uppercase tracking-[0.16em] text-ink-soft">
+                      Public GitHub repo
+                      <input
+                        value={obsidianGithubUrl}
+                        onChange={(event) => {
+                          setObsidianGithubUrl(event.target.value);
+                          setObsidianPreview(null);
+                          setObsidianResult(null);
+                        }}
+                        placeholder="https://github.com/owner/world-vault"
+                        className="mt-1 w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm normal-case tracking-normal"
+                      />
+                    </label>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <label className="text-xs font-ui uppercase tracking-[0.16em] text-ink-soft">
+                        Branch
+                        <input
+                          value={obsidianGithubBranch}
+                          onChange={(event) => setObsidianGithubBranch(event.target.value)}
+                          placeholder="main"
+                          className="mt-1 w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm normal-case tracking-normal"
+                        />
+                      </label>
+                      <label className="text-xs font-ui uppercase tracking-[0.16em] text-ink-soft">
+                        Vault root path
+                        <input
+                          value={obsidianGithubRootPath}
+                          onChange={(event) => setObsidianGithubRootPath(event.target.value)}
+                          placeholder="Optional folder"
+                          className="mt-1 w-full rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-sm normal-case tracking-normal"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      onClick={() => previewObsidianGithub().catch(() => undefined)}
+                      disabled={!obsidianGithubUrl.trim() || obsidianState.active}
+                      className="w-full rounded-xl border border-page-edge px-3 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ink-soft enabled:hover:text-ember disabled:opacity-50"
+                    >
+                      Preview GitHub Import
+                    </button>
+                  </div>
+                  {obsidianPreview && (
+                    <div className="rounded-xl border border-page-edge bg-parchment/80 p-3 text-sm">
+                      <div className="font-ui text-[10px] uppercase tracking-[0.18em] text-ink-soft">
+                        Preview: {obsidianPreview.sourceInput.displayName}
+                      </div>
+                      <div className="mt-2 grid gap-2 text-xs font-ui text-ink-soft sm:grid-cols-4">
+                        <span>{obsidianPreview.preview.docs.length} pages</span>
+                        <span>{obsidianPreview.preview.images.length} images</span>
+                        <span>{obsidianPreview.preview.skipped.length} skipped</span>
+                        <span>{obsidianPreview.preview.warnings.length} warnings</span>
+                      </div>
+                      {obsidianPreview.preview.stats.strippedArchiveRoot && (
+                        <p className="marginal-note mt-2">
+                          Archive root "{obsidianPreview.preview.stats.strippedArchiveRoot}" will
+                          map to the campaign root.
+                        </p>
+                      )}
+                      {obsidianPreview.preview.warnings.slice(0, 3).map((warning) => (
+                        <div key={`${warning.code}:${warning.sourcePath ?? warning.message}`} className="mt-2 text-xs text-ember">
+                          {warning.message}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => runObsidianImport().catch(() => undefined)}
+                        disabled={obsidianState.active || !activeCampaignId}
+                        className="mt-3 w-full rounded-xl border border-ember/30 bg-ember/10 px-3 py-2 text-xs font-ui uppercase tracking-[0.18em] text-ember disabled:opacity-50"
+                      >
+                        {obsidianState.active ? "Importing..." : "Import Preview"}
+                      </button>
+                    </div>
+                  )}
+                  {obsidianState.label && (
+                    <div className="text-xs font-ui text-ink-soft">{obsidianState.label}</div>
+                  )}
+                  {obsidianState.error && (
+                    <div className="text-xs font-ui text-ember">{obsidianState.error}</div>
+                  )}
+                  {obsidianResult && (
+                    <div className="rounded-xl border border-page-edge bg-parchment/80 p-3 text-xs font-ui text-ink-soft">
+                      Created {obsidianResult.createdDocs}, updated {obsidianResult.updatedDocs},
+                      unchanged {obsidianResult.unchangedDocs}, conflicts{" "}
+                      {obsidianResult.conflicts.length}. Images uploaded{" "}
+                      {obsidianResult.uploadedImages}, replaced{" "}
+                      {obsidianResult.replacedImages}, reused {obsidianResult.reusedImages}.
+                    </div>
+                  )}
+                  {(vaultSources ?? []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="font-ui text-[10px] uppercase tracking-[0.18em] text-ink-soft">
+                        Linked sources
+                      </div>
+                      {(vaultSources ?? []).slice(0, 5).map((source) => (
+                        <div
+                          key={source.id}
+                          className="rounded-xl border border-page-edge bg-parchment/80 px-3 py-2 text-xs"
+                        >
+                          <div className="font-body text-ink">{source.displayName}</div>
+                          <div className="font-ui uppercase tracking-[0.16em] text-ink-soft">
+                            {source.provider} · {source.lastSyncStatus ?? "not synced"} ·{" "}
+                            {source.lastSyncAt
+                              ? formatRelativeTime(source.lastSyncAt)
+                              : "never"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="marginal-note">
+                    Imports Markdown pages into the campaign root, uploads common images to
+                    private campaign Storage, and keeps source mappings for one-way resync.
+                    Private GitHub repositories need a future backend authorization flow.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-page-edge bg-parchment/70 p-5 space-y-4">

@@ -41,3 +41,6 @@ button and skip magic-link email during development.
 
 - Export from Settings to download a single vault JSON (folders, docs, edges, tags, trash state).
 - Import a vault JSON to merge into or overwrite the active campaign.
+- Import an Obsidian vault from Settings using either a zip archive or a public GitHub repository snapshot. Markdown pages map into the active campaign root, common image files are uploaded to private Supabase Storage, and matching Obsidian image embeds are rewritten to stable `asset:<id>` embeds.
+- Obsidian source mappings are one-way into Worldbuilder. Reimporting the same zip filename or public GitHub repo/branch/root updates mapped pages when they have not been edited in Worldbuilder; conflicting local edits are reported instead of overwritten.
+- Private GitHub repository sync is not browser-side. It requires a future backend OAuth/GitHub App flow so repository credentials are not stored in client-readable settings.

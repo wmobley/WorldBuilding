@@ -33,6 +33,7 @@ The migration order mirrors the raw SQL files:
 3. `supabase/migrations/20260706000300_app_schema.sql`
 4. `supabase/migrations/20260706000400_campaign_sharing.sql`
 5. `supabase/migrations/20260706000500_assets_storage.sql`
+6. `supabase/migrations/20260707000100_obsidian_vault_sources.sql`
 
 ## Apply the Schema To A Hosted Project
 
@@ -82,6 +83,8 @@ The app only shows that button when `import.meta.env.DEV` is true and
 - `session_notes`
 - `templates`
 - `assets`
+- `vault_sources`
+- `vault_source_files`
 
 Maps still support existing `image_data_url` rows. New map/media work can use the
 Storage-ready `image_storage_path`, `width`, `height`, and `assets` metadata
@@ -120,6 +123,26 @@ Simple galleries use stable asset ids:
 New map uploads write image files to the same private bucket and store
 `maps.image_storage_path`, while existing `maps.image_data_url` rows continue to
 render as a fallback.
+
+## Obsidian Vault Sources
+
+Settings can import an Obsidian vault from a zip archive or public GitHub
+repository snapshot. The importer writes Markdown files into the active campaign
+root, uploads common image files to the private `campaign-assets` bucket, and
+records source mappings for one-way resync.
+
+Source tracking tables:
+
+- `vault_sources` stores the linked zip/GitHub source metadata, source key, and
+  last sync status.
+- `vault_source_files` maps source paths to imported docs or Storage assets,
+  stores the last imported content hash, and records conflicts or missing files.
+
+Reimports update a mapped page only when the current Worldbuilder page still
+matches the last imported body hash. If the page changed locally, the source
+file is marked as a conflict instead of overwriting the user's online edit.
+Private GitHub repository access is intentionally not handled in the browser;
+that requires a backend OAuth or GitHub App flow.
 
 ## Example SQL queries
 

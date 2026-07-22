@@ -163,3 +163,42 @@ export type Asset = {
   updatedAt: number;
   ownerId?: string;
 };
+
+export type VaultSourceProvider = "zip" | "github";
+
+export type VaultSource = {
+  id: string;
+  campaignId: string;
+  provider: VaultSourceProvider;
+  sourceKey: string;
+  displayName: string;
+  repoOwner?: string | null;
+  repoName?: string | null;
+  repoBranch?: string | null;
+  rootPath?: string | null;
+  lastSyncAt?: number | null;
+  lastSyncStatus?: string | null;
+  lastSyncMessage?: string | null;
+  lastCommitSha?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  ownerId?: string;
+};
+
+export type VaultSourceFileKind = "doc" | "image";
+
+export type VaultSourceFile = {
+  id: string;
+  sourceId: string;
+  campaignId: string;
+  kind: VaultSourceFileKind;
+  sourcePath: string;
+  docId?: string | null;
+  assetId?: string | null;
+  contentHash: string;
+  importedTitle: string;
+  lastSeenAt: number;
+  deletedAt?: number | null;
+  conflictAt?: number | null;
+  conflictReason?: string | null;
+};

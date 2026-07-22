@@ -15,7 +15,9 @@ import type {
   SessionNotes,
   Tag,
   WorldMap,
-  Asset
+  Asset,
+  VaultSource,
+  VaultSourceFile
 } from "./types";
 import { createId } from "../lib/id";
 import { parseLinks, parseTags } from "./parser";
@@ -28,6 +30,24 @@ const logSupabaseError = (context: string, error: unknown) => {
     console.error(`Supabase error in ${context}:`, error);
   }
 };
+
+async function readFileBuffer(file: File) {
+  if (typeof file.arrayBuffer === "function") {
+    return file.arrayBuffer();
+  }
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read file."));
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Could not read file as bytes."));
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 const mapCampaign = (row: any): Campaign => ({
   id: row.id,
@@ -188,6 +208,41 @@ const mapAsset = (row: any): Asset => ({
   createdAt: Number(row.created_at),
   updatedAt: Number(row.updated_at),
   ownerId: row.owner_id ?? undefined
+});
+
+const mapVaultSource = (row: any): VaultSource => ({
+  id: row.id,
+  campaignId: row.campaign_id,
+  provider: row.provider,
+  sourceKey: row.source_key,
+  displayName: row.display_name,
+  repoOwner: row.repo_owner ?? null,
+  repoName: row.repo_name ?? null,
+  repoBranch: row.repo_branch ?? null,
+  rootPath: row.root_path ?? null,
+  lastSyncAt: row.last_sync_at ?? null,
+  lastSyncStatus: row.last_sync_status ?? null,
+  lastSyncMessage: row.last_sync_message ?? null,
+  lastCommitSha: row.last_commit_sha ?? null,
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at),
+  ownerId: row.owner_id ?? undefined
+});
+
+const mapVaultSourceFile = (row: any): VaultSourceFile => ({
+  id: row.id,
+  sourceId: row.source_id,
+  campaignId: row.campaign_id,
+  kind: row.kind,
+  sourcePath: row.source_path,
+  docId: row.doc_id ?? null,
+  assetId: row.asset_id ?? null,
+  contentHash: row.content_hash,
+  importedTitle: row.imported_title,
+  lastSeenAt: Number(row.last_seen_at),
+  deletedAt: row.deleted_at ?? null,
+  conflictAt: row.conflict_at ?? null,
+  conflictReason: row.conflict_reason ?? null
 });
 
 export async function listFolders(campaignId: string) {
@@ -796,6 +851,16 @@ export async function listAssets(campaignId: string) {
   return (data ?? []).map(mapAsset);
 }
 
+export async function getAssetById(assetId: string) {
+  const { data, error } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("id", assetId)
+    .maybeSingle();
+  logSupabaseError("getAssetById", error);
+  return data ? mapAsset(data) : null;
+}
+
 export async function uploadAsset(
   campaignId: string,
   docId: string | null,
@@ -805,11 +870,13 @@ export async function uploadAsset(
   const now = Date.now();
   const assetId = createId();
   const storagePath = buildAssetStoragePath(campaignId, assetId, file.name);
+  const contentType = file.type || undefined;
+  const uploadBody = await readFileBuffer(file);
   const { error: uploadError } = await supabase.storage
     .from(ASSET_BUCKET)
-    .upload(storagePath, file, {
+    .upload(storagePath, uploadBody, {
       cacheControl: "3600",
-      contentType: file.type || undefined,
+      contentType,
       upsert: false
     });
   logSupabaseError("uploadAsset:storage", uploadError);
@@ -821,7 +888,7 @@ export async function uploadAsset(
     docId,
     storagePath,
     filename: file.name || "asset",
-    contentType: file.type || null,
+    contentType: contentType ?? null,
     sizeBytes: file.size,
     altText: altText.trim() || null,
     createdAt: now,
@@ -849,6 +916,147 @@ export async function uploadAsset(
   return asset;
 }
 
+export async function listVaultSources(campaignId: string) {
+  const { data, error } = await supabase
+    .from("vault_sources")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("updated_at", { ascending: false });
+  logSupabaseError("listVaultSources", error);
+  return (data ?? []).map(mapVaultSource);
+}
+
+export async function upsertVaultSource(input: {
+  campaignId: string;
+  provider: VaultSource["provider"];
+  sourceKey: string;
+  displayName: string;
+  repoOwner?: string | null;
+  repoName?: string | null;
+  repoBranch?: string | null;
+  rootPath?: string | null;
+  lastSyncStatus?: string | null;
+  lastSyncMessage?: string | null;
+  lastCommitSha?: string | null;
+}) {
+  const now = Date.now();
+  const existing = await supabase
+    .from("vault_sources")
+    .select("*")
+    .eq("campaign_id", input.campaignId)
+    .eq("source_key", input.sourceKey)
+    .maybeSingle();
+  logSupabaseError("upsertVaultSource:select", existing.error);
+
+  const row = {
+    campaign_id: input.campaignId,
+    provider: input.provider,
+    source_key: input.sourceKey,
+    display_name: input.displayName,
+    repo_owner: input.repoOwner ?? null,
+    repo_name: input.repoName ?? null,
+    repo_branch: input.repoBranch ?? null,
+    root_path: input.rootPath ?? null,
+    last_sync_at: now,
+    last_sync_status: input.lastSyncStatus ?? "syncing",
+    last_sync_message: input.lastSyncMessage ?? null,
+    last_commit_sha: input.lastCommitSha ?? null,
+    updated_at: now
+  };
+
+  if (existing.data) {
+    const { data, error } = await supabase
+      .from("vault_sources")
+      .update(row)
+      .eq("id", existing.data.id)
+      .select("*")
+      .single();
+    logSupabaseError("upsertVaultSource:update", error);
+    return data ? mapVaultSource(data) : mapVaultSource(existing.data);
+  }
+
+  const { data, error } = await supabase
+    .from("vault_sources")
+    .insert({
+      id: createId(),
+      ...row,
+      created_at: now
+    })
+    .select("*")
+    .single();
+  logSupabaseError("upsertVaultSource:insert", error);
+  if (!data) {
+    throw error ?? new Error("Could not create vault source.");
+  }
+  return mapVaultSource(data);
+}
+
+export async function updateVaultSourceSyncStatus(
+  sourceId: string,
+  updates: Pick<VaultSource, "lastSyncStatus" | "lastSyncMessage"> & {
+    lastCommitSha?: string | null;
+  }
+) {
+  const { error } = await supabase
+    .from("vault_sources")
+    .update({
+      last_sync_at: Date.now(),
+      last_sync_status: updates.lastSyncStatus,
+      last_sync_message: updates.lastSyncMessage,
+      last_commit_sha: updates.lastCommitSha,
+      updated_at: Date.now()
+    })
+    .eq("id", sourceId);
+  logSupabaseError("updateVaultSourceSyncStatus", error);
+}
+
+export async function listVaultSourceFiles(sourceId: string) {
+  const { data, error } = await supabase
+    .from("vault_source_files")
+    .select("*")
+    .eq("source_id", sourceId);
+  logSupabaseError("listVaultSourceFiles", error);
+  return (data ?? []).map(mapVaultSourceFile);
+}
+
+export async function upsertVaultSourceFiles(files: VaultSourceFile[]) {
+  if (files.length === 0) return;
+  const rows = files.map((file) => ({
+    id: file.id,
+    source_id: file.sourceId,
+    campaign_id: file.campaignId,
+    kind: file.kind,
+    source_path: file.sourcePath,
+    doc_id: file.docId ?? null,
+    asset_id: file.assetId ?? null,
+    content_hash: file.contentHash,
+    imported_title: file.importedTitle,
+    last_seen_at: file.lastSeenAt,
+    deleted_at: file.deletedAt ?? null,
+    conflict_at: file.conflictAt ?? null,
+    conflict_reason: file.conflictReason ?? null
+  }));
+  const chunkSize = 500;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const { error } = await supabase
+      .from("vault_source_files")
+      .upsert(rows.slice(i, i + chunkSize), { onConflict: "source_id,source_path" });
+    logSupabaseError("upsertVaultSourceFiles", error);
+  }
+}
+
+export async function updateVaultSourceFileMissing(fileId: string, deletedAt: number) {
+  const { error } = await supabase
+    .from("vault_source_files")
+    .update({
+      deleted_at: deletedAt,
+      conflict_at: null,
+      conflict_reason: null
+    })
+    .eq("id", fileId);
+  logSupabaseError("updateVaultSourceFileMissing", error);
+}
+
 export async function updateAssetMetadata(
   assetId: string,
   updates: { filename?: string; altText?: string | null }
@@ -871,11 +1079,13 @@ export async function updateAssetMetadata(
 export async function replaceAssetFile(asset: Asset, file: File) {
   const now = Date.now();
   const nextStoragePath = buildAssetStoragePath(asset.campaignId, asset.id, file.name);
+  const contentType = file.type || undefined;
+  const uploadBody = await readFileBuffer(file);
   const { error: uploadError } = await supabase.storage
     .from(ASSET_BUCKET)
-    .upload(nextStoragePath, file, {
+    .upload(nextStoragePath, uploadBody, {
       cacheControl: "3600",
-      contentType: file.type || undefined,
+      contentType,
       upsert: true
     });
   logSupabaseError("replaceAssetFile:storage", uploadError);
@@ -886,7 +1096,7 @@ export async function replaceAssetFile(asset: Asset, file: File) {
     .update({
       storage_path: nextStoragePath,
       filename: file.name || asset.filename,
-      content_type: file.type || asset.contentType,
+      content_type: contentType ?? asset.contentType,
       size_bytes: file.size,
       updated_at: now
     })
