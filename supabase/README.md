@@ -34,6 +34,38 @@ The migration order mirrors the raw SQL files:
 4. `supabase/migrations/20260706000400_campaign_sharing.sql`
 5. `supabase/migrations/20260706000500_assets_storage.sql`
 6. `supabase/migrations/20260707000100_obsidian_vault_sources.sql`
+7. `supabase/migrations/20260707000200_mcp_proposals.sql`
+
+## Worldbuilder MCP Edge Function
+
+The repo includes a Phase 2 MCP proposal-workbench server at
+`supabase/functions/worldbuilder-mcp`.
+
+Local endpoint:
+
+```text
+http://127.0.0.1:54321/functions/v1/worldbuilder-mcp/mcp
+```
+
+Serve it locally after `supabase start`:
+
+```bash
+supabase functions serve worldbuilder-mcp
+```
+
+Data-bearing MCP methods require a Supabase user access token:
+
+```text
+Authorization: Bearer <Supabase user access token>
+```
+
+The function passes that user token to Supabase REST with the anon key, so
+existing RLS policies remain the data boundary. It can save proposal records to
+`mcp_proposals`, but it does not create, update, delete, share, upload, publish,
+or otherwise mutate campaign canon.
+
+For browser clients, set `WB_MCP_ALLOWED_ORIGINS` as a comma-separated allow
+list. Non-browser MCP clients usually omit `Origin` and are accepted.
 
 ## Apply the Schema To A Hosted Project
 
@@ -44,6 +76,7 @@ The migration order mirrors the raw SQL files:
 5. Run `supabase/app-schema.sql`.
 6. Run `supabase/campaign-sharing.sql`.
 7. Run `supabase/assets-storage.sql`.
+8. Run `supabase/mcp-proposals.sql`.
 
 The checked-in migrations can also be used with a linked hosted project, but
 `supabase db push` mutates remote state and should only be run after confirming
@@ -85,6 +118,10 @@ The app only shows that button when `import.meta.env.DEV` is true and
 - `assets`
 - `vault_sources`
 - `vault_source_files`
+
+`mcp-proposals.sql` creates:
+
+- `mcp_proposals`
 
 Maps still support existing `image_data_url` rows. New map/media work can use the
 Storage-ready `image_storage_path`, `width`, `height`, and `assets` metadata
