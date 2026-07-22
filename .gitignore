@@ -30,5 +30,10 @@ sw-injector.js
 # Local dev lifecycle state
 .worldbuilding-dev/
 
+# Local agent configs
+.claude/
+.wolf/
+CLAUDE.md
+
 # Dev scripts
 dev-*.sh
